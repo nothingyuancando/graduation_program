@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiClient } from "@/storage/database/supabase-client";
 import { fetchUrlContent } from "@/lib/parsers/url";
 import { getUserFromRequest } from "@/lib/auth";
+import { generateImportedLearningNote } from "@/lib/services/import-note";
 import { z } from "zod";
 
 const urlUploadSchema = z.object({
@@ -25,17 +26,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未能从该 URL 提取到文本内容" }, { status: 400 });
     }
 
+    const noteTitle = validated.title || title;
+    const importedNote = await generateImportedLearningNote({
+      title: noteTitle,
+      sourceText: text,
+      sourceLabel: validated.url,
+      userId: user.id,
+    });
+
     const client = getApiClient();
     const { data, error } = await client
       .from("notes")
       .insert({
         user_id: user.id,
-        title: validated.title || title,
-        content: text,
-        content_type: "text",
+        title: noteTitle,
+        content: importedNote.content,
+        content_type: "markdown",
+        summary: importedNote.summary,
+        tags: importedNote.tags,
+        key_points: importedNote.keyPoints,
+        mind_map: importedNote.mindMap,
         source_type: "url",
         source_url: validated.url,
-        status: "draft",
+        status: "processed",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

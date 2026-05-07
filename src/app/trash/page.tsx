@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, BookOpenCheck, FileText, RotateCcw, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trash2, RotateCcw, FileText } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type TrashKind = "note" | "learning_goal";
 
 interface TrashedNote {
   id: string;
@@ -13,6 +16,16 @@ interface TrashedNote {
   summary?: string;
   tags?: string[];
   source_type: string;
+  status: string;
+  deleted_at: string;
+  updated_at: string;
+}
+
+interface TrashedLearningGoal {
+  id: string;
+  title: string;
+  description?: string;
+  cognitive_level?: string;
   status: string;
   deleted_at: string;
   updated_at: string;
@@ -27,126 +40,205 @@ function daysLeft(deletedAt: string): number {
 
 export default function TrashPage() {
   const [notes, setNotes] = useState<TrashedNote[]>([]);
+  const [learningGoals, setLearningGoals] = useState<TrashedLearningGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [view, setView] = useState<TrashKind>("learning_goal");
 
   useEffect(() => {
-    fetchTrash();
+    void fetchTrash();
   }, []);
 
-  const fetchTrash = async () => {
+  const items = useMemo(() => (view === "learning_goal" ? learningGoals : notes), [learningGoals, notes, view]);
+
+  async function fetchTrash() {
     try {
       const res = await fetch("/api/trash");
       const data = await res.json();
       if (data.notes) setNotes(data.notes);
+      if (data.learningGoals) setLearningGoals(data.learningGoals);
     } catch (error) {
       console.error("Error fetching trash:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleRestore = async (id: string) => {
+  async function handleRestore(id: string, type: TrashKind) {
     setActionLoading(id + "-restore");
     try {
-      await fetch(`/api/trash/${id}/restore`, { method: "POST" });
-      setNotes((prev) => prev.filter((n) => n.id !== id));
+      await fetch(`/api/trash/${id}/restore?type=${type}`, { method: "POST" });
+      if (type === "learning_goal") {
+        setLearningGoals((prev) => prev.filter((item) => item.id !== id));
+      } else {
+        setNotes((prev) => prev.filter((item) => item.id !== id));
+      }
     } finally {
       setActionLoading(null);
     }
-  };
+  }
 
-  const handlePermanentDelete = async (id: string) => {
-    if (!confirm("确定永久删除？此操作不可撤销。")) return;
+  async function handlePermanentDelete(id: string, type: TrashKind) {
+    const label = type === "learning_goal" ? "学习空间" : "笔记";
+    if (!window.confirm(`确定永久删除这个${label}吗？此操作不可撤销。`)) return;
+
     setActionLoading(id + "-delete");
     try {
-      await fetch(`/api/trash/${id}`, { method: "DELETE" });
-      setNotes((prev) => prev.filter((n) => n.id !== id));
+      await fetch(`/api/trash/${id}?type=${type}`, { method: "DELETE" });
+      if (type === "learning_goal") {
+        setLearningGoals((prev) => prev.filter((item) => item.id !== id));
+      } else {
+        setNotes((prev) => prev.filter((item) => item.id !== id));
+      }
     } finally {
       setActionLoading(null);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-[#f7f8f4] text-slate-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-[#fbfcf8]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-4">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              返回
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              返回首页
             </Link>
           </Button>
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-muted-foreground" />
+            <h1 className="flex items-center gap-2 text-xl font-black">
+              <Trash2 className="h-5 w-5 text-slate-500" />
               回收站
             </h1>
-            <p className="text-xs text-muted-foreground">笔记将在删除 7 天后自动清除</p>
+            <p className="text-xs text-slate-500">学习空间可恢复；笔记会在删除 7 天后自动清理。</p>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+      <main className="mx-auto max-w-5xl px-5 py-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <Tabs value={view} onValueChange={(value) => setView(value as TrashKind)}>
+            <TabsList className="h-11 rounded-lg bg-white p-1 shadow-sm">
+              <TabsTrigger value="learning_goal" className="rounded-md px-4">
+                学习空间 {learningGoals.length}
+              </TabsTrigger>
+              <TabsTrigger value="note" className="rounded-md px-4">
+                笔记 {notes.length}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button variant="outline" asChild>
+            <Link href="/goals">新建学习空间</Link>
+          </Button>
+        </div>
+
         {loading ? (
-          <div className="text-center py-20 text-muted-foreground">加载中...</div>
-        ) : notes.length === 0 ? (
-          <Card>
+          <div className="py-20 text-center text-slate-500">加载中...</div>
+        ) : items.length === 0 ? (
+          <Card className="border-dashed bg-white">
             <CardContent className="py-20 text-center">
-              <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">回收站是空的</p>
+              <Trash2 className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+              <p className="font-semibold text-slate-600">这里暂时是空的</p>
+              <p className="mt-2 text-sm text-slate-500">
+                {view === "learning_goal" ? "被删除的学习空间会出现在这里。" : "被删除的笔记会出现在这里。"}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {notes.map((note) => {
-              const remaining = daysLeft(note.deleted_at);
-              return (
-                <Card key={note.id} className="border-dashed">
-                  <CardContent className="p-4 flex items-start gap-4">
-                    <FileText className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate text-muted-foreground">{note.title}</h3>
-                      {note.summary && (
-                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{note.summary}</p>
-                      )}
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="text-xs text-muted-foreground">
-                          删除于 {new Date(note.deleted_at).toLocaleDateString("zh-CN")}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={remaining <= 1 ? "text-red-500 border-red-300" : "text-orange-500 border-orange-300"}
-                        >
-                          {remaining} 天后永久删除
-                        </Badge>
+            {view === "learning_goal"
+              ? learningGoals.map((goal) => (
+                  <Card key={goal.id} className="border-dashed bg-white">
+                    <CardContent className="flex items-start gap-4 p-4">
+                      <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate font-semibold text-slate-700">{goal.title}</h3>
+                        {goal.description && (
+                          <p className="mt-1 line-clamp-1 text-sm text-slate-500">{goal.description}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">学习空间</Badge>
+                          <span className="text-xs text-slate-500">
+                            移入回收站：{new Date(goal.deleted_at).toLocaleDateString("zh-CN")}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRestore(note.id)}
-                        disabled={actionLoading === note.id + "-restore"}
-                      >
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        恢复
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handlePermanentDelete(note.id)}
-                        disabled={actionLoading === note.id + "-delete"}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        永久删除
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRestore(goal.id, "learning_goal")}
+                          disabled={actionLoading === goal.id + "-restore"}
+                        >
+                          <RotateCcw className="mr-1 h-4 w-4" />
+                          恢复
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => handlePermanentDelete(goal.id, "learning_goal")}
+                          disabled={actionLoading === goal.id + "-delete"}
+                        >
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          永久删除
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              : notes.map((note) => {
+                  const remaining = daysLeft(note.deleted_at);
+                  return (
+                    <Card key={note.id} className="border-dashed bg-white">
+                      <CardContent className="flex items-start gap-4 p-4">
+                        <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate font-semibold text-slate-700">{note.title}</h3>
+                          {note.summary && (
+                            <p className="mt-1 line-clamp-1 text-sm text-slate-500">{note.summary}</p>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <span className="text-xs text-slate-500">
+                              删除于 {new Date(note.deleted_at).toLocaleDateString("zh-CN")}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                remaining <= 1
+                                  ? "border-red-300 text-red-500"
+                                  : "border-orange-300 text-orange-500"
+                              }
+                            >
+                              {remaining} 天后永久删除
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRestore(note.id, "note")}
+                            disabled={actionLoading === note.id + "-restore"}
+                          >
+                            <RotateCcw className="mr-1 h-4 w-4" />
+                            恢复
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => handlePermanentDelete(note.id, "note")}
+                            disabled={actionLoading === note.id + "-delete"}
+                          >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            永久删除
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
           </div>
         )}
       </main>

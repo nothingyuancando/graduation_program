@@ -1,19 +1,24 @@
-import type { Metadata } from 'next';
-import { Inspector } from 'react-dev-inspector';
-import { Toaster } from 'sonner';
-import { AuthProvider } from '@/contexts/auth-context';
-import { QuickCapture } from '@/components/QuickCapture';
-import './globals.css';
+import type { Metadata } from "next";
+import { AppProviders } from "@/components/AppProviders";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: 'AI 个性化学习知识库',
-    template: '%s | AI 个性化学习知识库',
+    default: "AI 个性化学习笔记平台",
+    template: "%s | AI 个性化学习笔记平台",
   },
   description:
-    '基于大语言模型的 AI 个性化学习知识库，支持结构化学习笔记、概念双链、复习卡片、测验反馈、薄弱点识别和学习路径生成。',
-  keywords: ['AI个性化学习知识库', '学习知识库', 'AI学习助手', '知识管理', '双链笔记', '复习卡片', '学习路径'],
-  authors: [{ name: 'AI 个性化学习知识库' }],
+    "一个以学习闭环为核心设计理念的 AI 个性化学习笔记平台，覆盖目标设定、知识摄入、深度理解、主动回忆、弱点补强和掌握度评估。",
+  keywords: [
+    "AI 个性化学习笔记",
+    "学习闭环",
+    "费曼复述",
+    "主动回忆",
+    "间隔重复",
+    "掌握度评估",
+    "知识图谱",
+  ],
+  authors: [{ name: "AI 个性化学习笔记平台" }],
   robots: { index: false, follow: false },
 };
 
@@ -22,17 +27,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isDev = process.env.NODE_ENV === 'development';
-
   return (
-    <html lang="en">
-      <body className={`antialiased`}>
-        {isDev && <Inspector />}
-        <AuthProvider>
-          {children}
-          <QuickCapture />
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
+    <html lang="zh-CN">
+      <body className="antialiased">
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

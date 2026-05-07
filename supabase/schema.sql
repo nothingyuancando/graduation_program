@@ -325,6 +325,102 @@ CREATE TABLE IF NOT EXISTS user_learning_profiles (
   updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- ============================================================
+-- 13.1. 用户技能画像表
+-- 代码中的学习路径、测验生成和学科分类会读取该表，初始化脚本必须同步创建。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_skills (
+  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID         NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+  subject_levels  JSONB        NOT NULL DEFAULT '[]',
+  learning_style  JSONB        NOT NULL DEFAULT '{"preferredFormat":"text","pace":"moderate","detailLevel":"moderate"}',
+  goals           JSONB        NOT NULL DEFAULT '[]',
+  strengths       JSONB        NOT NULL DEFAULT '[]',
+  preferences     JSONB        NOT NULL DEFAULT '{}',
+  updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS user_skills_user_id_idx ON user_skills(user_id);
+
+-- ============================================================
+-- 13.2. 学习闭环：目标、理解验证、掌握度
+-- 这些表支撑“目标设定 -> 深度理解 -> 主动回忆 -> 弱点补强 -> 掌握评估”的主线。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS learning_goals (
+  id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID         NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title            VARCHAR(500) NOT NULL,
+  description      TEXT,
+  cognitive_level  VARCHAR(50)  NOT NULL DEFAULT 'understand',
+  -- remember | understand | apply | analyze
+  status           VARCHAR(50)  NOT NULL DEFAULT 'active',
+  -- active | completed | paused | archived
+  deadline         DATE,
+  knowledge_points JSONB        NOT NULL DEFAULT '[]',
+  daily_plan       JSONB        NOT NULL DEFAULT '[]',
+  progress         INTEGER      NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS learning_goals_user_id_idx ON learning_goals(user_id);
+CREATE INDEX IF NOT EXISTS learning_goals_status_idx ON learning_goals(status);
+CREATE INDEX IF NOT EXISTS learning_goals_created_at_idx ON learning_goals(created_at);
+
+CREATE TABLE IF NOT EXISTS feynman_attempts (
+  id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             UUID         NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  goal_id             UUID         REFERENCES learning_goals(id) ON DELETE SET NULL,
+  note_id             UUID         REFERENCES notes(id) ON DELETE SET NULL,
+  concept             VARCHAR(500) NOT NULL,
+  user_explanation    TEXT         NOT NULL,
+  score               INTEGER      NOT NULL DEFAULT 0,
+  level               VARCHAR(100),
+  missing_points      JSONB        NOT NULL DEFAULT '[]',
+  misconceptions      JSONB        NOT NULL DEFAULT '[]',
+  follow_up_questions JSONB        NOT NULL DEFAULT '[]',
+  recommended_review  JSONB        NOT NULL DEFAULT '[]',
+  ai_feedback         TEXT,
+  created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS feynman_attempts_user_id_idx ON feynman_attempts(user_id);
+CREATE INDEX IF NOT EXISTS feynman_attempts_concept_idx ON feynman_attempts(concept);
+CREATE INDEX IF NOT EXISTS feynman_attempts_created_at_idx ON feynman_attempts(created_at);
+
+CREATE TABLE IF NOT EXISTS socratic_sessions (
+  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID         NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  goal_id       UUID         REFERENCES learning_goals(id) ON DELETE SET NULL,
+  note_id       UUID         REFERENCES notes(id) ON DELETE SET NULL,
+  concept       VARCHAR(500) NOT NULL,
+  messages      JSONB        NOT NULL DEFAULT '[]',
+  summary       TEXT,
+  status        VARCHAR(50)  NOT NULL DEFAULT 'active',
+  -- active | completed | archived
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS socratic_sessions_user_id_idx ON socratic_sessions(user_id);
+CREATE INDEX IF NOT EXISTS socratic_sessions_status_idx ON socratic_sessions(status);
+
+CREATE TABLE IF NOT EXISTS concept_mastery (
+  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID         NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  concept         VARCHAR(500) NOT NULL,
+  quiz_score      DECIMAL(5,2),
+  flashcard_score DECIMAL(5,2),
+  feynman_score   DECIMAL(5,2),
+  mastery_score   DECIMAL(5,2) NOT NULL DEFAULT 0,
+  evidence        JSONB        NOT NULL DEFAULT '{}',
+  updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, concept)
+);
+
+CREATE INDEX IF NOT EXISTS concept_mastery_user_id_idx ON concept_mastery(user_id);
+CREATE INDEX IF NOT EXISTS concept_mastery_score_idx ON concept_mastery(mastery_score);
+
 
 -- ============================================================
 -- 14. 练习题集表
@@ -433,6 +529,54 @@ CREATE TABLE IF NOT EXISTS user_llm_configs (
 );
 
 CREATE INDEX IF NOT EXISTS user_llm_configs_user_id_idx ON user_llm_configs(user_id);
+
+
+-- ============================================================
+-- 19. 异步 AI 笔记生成任务
+-- ============================================================
+CREATE TABLE IF NOT EXISTS generation_jobs (
+  id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID         NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  session_id       UUID         NOT NULL REFERENCES upload_sessions(id) ON DELETE CASCADE,
+  note_id          UUID         REFERENCES notes(id) ON DELETE SET NULL,
+  status           VARCHAR(50)  NOT NULL DEFAULT 'pending',
+  -- pending | running | completed | failed | cancelled
+  stage            VARCHAR(80)  NOT NULL DEFAULT 'queued',
+  -- queued | preparing_chunks | analyzing_chunks | merging_analysis | generating_note | saving_note | completed | failed
+  progress         INTEGER      NOT NULL DEFAULT 0,
+  total_chunks     INTEGER      NOT NULL DEFAULT 0,
+  processed_chunks INTEGER      NOT NULL DEFAULT 0,
+  failed_chunks    INTEGER      NOT NULL DEFAULT 0,
+  model            VARCHAR(200),
+  error_message    TEXT,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS generation_jobs_user_id_idx ON generation_jobs(user_id);
+CREATE INDEX IF NOT EXISTS generation_jobs_session_id_idx ON generation_jobs(session_id);
+CREATE INDEX IF NOT EXISTS generation_jobs_status_idx ON generation_jobs(status);
+CREATE INDEX IF NOT EXISTS generation_jobs_created_at_idx ON generation_jobs(created_at);
+
+CREATE TABLE IF NOT EXISTS generation_job_chunks (
+  id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id            UUID         NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+  chunk_index       INTEGER      NOT NULL,
+  source_file_names TEXT[]       NOT NULL DEFAULT '{}',
+  chunk_text        TEXT         NOT NULL,
+  status            VARCHAR(50)  NOT NULL DEFAULT 'pending',
+  -- pending | running | completed | failed
+  analysis_json     JSONB,
+  error_message     TEXT,
+  attempt_count     INTEGER      NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  UNIQUE (job_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS generation_job_chunks_job_id_idx ON generation_job_chunks(job_id);
+CREATE INDEX IF NOT EXISTS generation_job_chunks_status_idx ON generation_job_chunks(status);
+CREATE INDEX IF NOT EXISTS generation_job_chunks_job_status_idx ON generation_job_chunks(job_id, status);
 
 
 -- ============================================================

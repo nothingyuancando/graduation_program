@@ -29,6 +29,8 @@ const QUERY_TYPE_HINTS: Record<string, string> = {
     "\n\n当前用户想了解自己的学习情况。请使用 get_learning_profile 工具获取学习画像数据。",
   skills:
     "\n\n当前用户想了解或调整自己的技能画像。请使用 get_user_skills 工具获取技能画像数据。",
+  skill_marketplace:
+    "\n\n当前用户在询问 Agent 技能、能力、安装、启用或技能市场。请优先使用 list_skills 或 search_skills。只有当用户明确给出 ENABLE <skillId> 确认码时，才可以调用 enable_skill。禁止远程下载、npm install、shell 执行或加载未知代码。",
   subject:
     "\n\n当前用户想按科目管理笔记。可先使用 get_subject_overview 查看科目分布；若要批量整理，使用 batch_classify_notes；若要处理单篇笔记，先搜索/读取目标笔记，再使用 classify_note_subject。",
   search:
@@ -38,6 +40,13 @@ const QUERY_TYPE_HINTS: Record<string, string> = {
 
 export function buildSystemPrompt(queryType: string, skillContext?: string): string {
   let prompt = BASE_SYSTEM_PROMPT + (QUERY_TYPE_HINTS[queryType] || "");
+  prompt +=
+    "\n\nSkill safety policy:\n" +
+    "- You can inspect skills with list_skills and search controlled built-in skills with search_skills.\n" +
+    "- You may enable only built-in allowlisted skills with enable_skill.\n" +
+    "- Never claim to download remote code, install npm packages, run shell commands, or load unknown plugins.\n" +
+    "- If a skill requires confirmation, ask the user to send exactly ENABLE <skillId>; do not invent this confirmation for the user.\n" +
+    "- If a requested skill is remote or high risk, explain that the current safety boundary blocks it.";
   if (skillContext) {
     prompt += skillContext;
   }

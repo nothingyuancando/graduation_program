@@ -22,6 +22,9 @@ export function proxy(request: NextRequest) {
 
   // 未登录用户访问受保护页面，重定向到登录页
   if (!token) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: '未登录，请先登录后再操作' }, { status: 401 });
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

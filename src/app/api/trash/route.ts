@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiClient } from "@/storage/database/supabase-client";
 import { getUserFromRequest } from "@/lib/auth";
 
-// GET /api/trash - 获取回收站笔记（同时清理超过7天的）
+// GET /api/trash - 获取回收站内容（笔记 + 学习空间）
 export async function GET(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
@@ -21,19 +21,36 @@ export async function GET(request: NextRequest) {
       .not("deleted_at", "is", null)
       .lt("deleted_at", expiry);
 
-    // 返回回收站中剩余的笔记
-    const { data, error } = await client
+    const [notesResult, goalsResult] = await Promise.all([
+      client
       .from("notes")
       .select("id, title, summary, tags, source_type, status, deleted_at, updated_at")
       .eq("user_id", user.id)
       .not("deleted_at", "is", null)
-      .order("deleted_at", { ascending: false });
+        .order("deleted_at", { ascending: false }),
+      client
+        .from("learning_goals")
+        .select("id, title, description, cognitive_level, status, updated_at")
+        .eq("user_id", user.id)
+        .eq("status", "archived")
+        .order("updated_at", { ascending: false }),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (notesResult.error) {
+      return NextResponse.json({ error: notesResult.error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ notes: data });
+    if (goalsResult.error) {
+      return NextResponse.json({ error: goalsResult.error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      notes: notesResult.data || [],
+      learningGoals: (goalsResult.data || []).map((goal) => ({
+        ...goal,
+        deleted_at: goal.updated_at,
+      })),
+    });
   } catch (error) {
     console.error("Error fetching trash:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

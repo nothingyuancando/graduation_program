@@ -13,6 +13,9 @@ import { classifyNoteSubjectTool } from "./classify-note-subject";
 import { batchClassifyNotesTool } from "./batch-classify-notes";
 import { getSubjectOverviewTool } from "./get-subject-overview";
 import { generateLearningPathTool } from "./generate-learning-path";
+import { listSkillsTool } from "./list-skills";
+import { searchSkillsTool } from "./search-skills";
+import { enableSkillTool } from "./enable-skill";
 import { loadMcpTools } from "@/lib/mcp";
 
 export const allTools = [
@@ -27,6 +30,9 @@ export const allTools = [
   batchClassifyNotesTool,
   getSubjectOverviewTool,
   generateLearningPathTool,
+  listSkillsTool,
+  searchSkillsTool,
+  enableSkillTool,
 ];
 
 export async function getAllTools() {
@@ -46,4 +52,7 @@ export {
   batchClassifyNotesTool,
   getSubjectOverviewTool,
   generateLearningPathTool,
+  listSkillsTool,
+  searchSkillsTool,
+  enableSkillTool,
 };

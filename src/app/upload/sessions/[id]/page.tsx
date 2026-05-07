@@ -1,39 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle,
+  ExternalLink,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  ArrowLeft,
-  FileText,
-  Image as ImageIcon,
-  File,
-  Play,
-  RefreshCw,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  ExternalLink,
-} from "lucide-react";
 
-interface SessionFile {
+type SessionFile = {
   id: string;
   original_file_name: string;
   file_size: number;
   file_type: string;
   category: string;
-  status: string;
+  status: "pending" | "processing" | "completed" | "failed" | string;
   extracted_text?: string;
   error_message?: string;
   created_at: string;
   processed_at?: string;
-}
+};
 
-interface Session {
+type Session = {
   id: string;
   title: string;
   status: string;
@@ -41,11 +39,24 @@ interface Session {
   processed_files: number;
   created_at: string;
   updated_at: string;
-}
+};
 
-interface SessionDetail {
+type GenerationJob = {
+  id: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  stage: string;
+  progress: number;
+  total_chunks: number;
+  processed_chunks: number;
+  failed_chunks: number;
+  note_id?: string | null;
+  error_message?: string | null;
+};
+
+type SessionDetail = {
   session: Session;
   files: SessionFile[];
+  latestGenerationJob?: GenerationJob | null;
   stats: {
     total: number;
     pending: number;
@@ -53,32 +64,89 @@ interface SessionDetail {
     completed: number;
     failed: number;
   };
+};
+
+const fileStatusText: Record<string, string> = {
+  pending: "等待解析",
+  processing: "解析中",
+  completed: "已解析",
+  failed: "解析失败",
+};
+
+const jobStageText: Record<string, string> = {
+  queued: "等待生成",
+  preparing_chunks: "整理材料",
+  analyzing_chunks: "分析知识点",
+  merging_analysis: "合并分析",
+  generating_note: "生成笔记",
+  saving_note: "保存笔记",
+  completed: "笔记已生成",
+  failed: "生成失败",
+};
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const categoryIcons: Record<string, React.ReactNode> = {
-  image: <ImageIcon className="w-4 h-4" />,
-  text: <FileText className="w-4 h-4" />,
-  pdf: <FileText className="w-4 h-4" />,
-  presentation: <File className="w-4 h-4" />,
-  spreadsheet: <File className="w-4 h-4" />,
-  audio: <File className="w-4 h-4" />,
-  video: <File className="w-4 h-4" />,
-  other: <File className="w-4 h-4" />,
-};
+function fileStatusClass(status: string) {
+  if (status === "completed") return "bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
+  if (status === "processing") return "bg-cyan-50 text-cyan-700 hover:bg-cyan-50";
+  if (status === "failed") return "bg-rose-50 text-rose-700 hover:bg-rose-50";
+  return "bg-slate-100 text-slate-700 hover:bg-slate-100";
+}
 
-const statusColors: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
-  processing: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
-  completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
-  failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100",
-};
+function buildUserStage(input: {
+  stats: SessionDetail["stats"];
+  generationJob: GenerationJob | null;
+}) {
+  const { stats, generationJob } = input;
+  const fileProgress = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
-const statusText: Record<string, string> = {
-  pending: "待处理",
-  processing: "处理中",
-  completed: "已完成",
-  failed: "失败",
-};
+  if (generationJob?.status === "completed" && generationJob.note_id) {
+    return {
+      title: "笔记已生成",
+      description: "资料已经整理成学习笔记，可以进入下一步复述、测验或复习。",
+      progress: 100,
+      activeIndex: 2,
+    };
+  }
+
+  if (generationJob && ["pending", "running"].includes(generationJob.status)) {
+    return {
+      title: jobStageText[generationJob.stage] || "AI 正在生成笔记",
+      description: `AI 正在处理材料分块：${generationJob.processed_chunks}/${generationJob.total_chunks}`,
+      progress: Math.max(fileProgress, generationJob.progress),
+      activeIndex: 1,
+    };
+  }
+
+  if (generationJob?.status === "failed") {
+    return {
+      title: "AI 生成失败",
+      description: generationJob.error_message || "请检查模型配置或稍后重试。",
+      progress: fileProgress,
+      activeIndex: 1,
+    };
+  }
+
+  if (stats.pending > 0 || stats.processing > 0) {
+    return {
+      title: "正在解析资料",
+      description: `已解析 ${stats.completed}/${stats.total} 项，失败 ${stats.failed} 项。`,
+      progress: fileProgress,
+      activeIndex: 0,
+    };
+  }
+
+  return {
+    title: "准备生成笔记",
+    description: "资料解析完成，正在创建 AI 生成任务。",
+    progress: fileProgress,
+    activeIndex: 1,
+  };
+}
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -89,16 +157,19 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [consolidating, setConsolidating] = useState(false);
+  const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const autoConsolidatedSessionRef = useRef<string | null>(null);
 
   const fetchSession = async () => {
     try {
       const response = await fetch(`/api/upload/sessions/${sessionId}`);
       if (!response.ok) {
-        throw new Error("会话不存在");
+        throw new Error("没有找到这次导入记录。");
       }
       const result = await response.json();
       setData(result);
+      if (result.latestGenerationJob) setGenerationJob(result.latestGenerationJob);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");
@@ -108,8 +179,7 @@ export default function SessionDetailPage() {
   };
 
   useEffect(() => {
-    fetchSession();
-    // 每5秒刷新一次状态
+    void fetchSession();
     const interval = setInterval(fetchSession, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,11 +192,12 @@ export default function SessionDetailPage() {
         method: "POST",
       });
       if (!response.ok) {
-        throw new Error("处理失败");
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "解析资料失败");
       }
       await fetchSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "处理失败");
+      setError(err instanceof Error ? err.message : "解析资料失败");
     } finally {
       setProcessing(false);
     }
@@ -138,45 +209,89 @@ export default function SessionDetailPage() {
       const response = await fetch(`/api/upload/sessions/${sessionId}/consolidate`, {
         method: "POST",
       });
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("合并失败");
+        throw new Error([result.error, result.hint, result.detail].filter(Boolean).join("\n") || "生成笔记失败");
       }
-      const result = await response.json();
-      // 跳转到笔记页面
+      if (result.job) {
+        setGenerationJob(result.job);
+        setError(null);
+      }
       if (result.note?.id) {
         router.push(`/notes/${result.note.id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "合并失败");
+      setError(err instanceof Error ? err.message : "生成笔记失败");
     } finally {
       setConsolidating(false);
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  useEffect(() => {
+    if (!data || processing || consolidating) return;
+
+    const { session, stats } = data;
+    const hasActiveJob = generationJob && ["pending", "running"].includes(generationJob.status);
+    const hasCompletedJob = generationJob?.status === "completed" && !!generationJob.note_id;
+
+    if ((session.status === "pending" || session.status === "processing") && stats.pending > 0 && stats.processing === 0) {
+      void handleProcess();
+      return;
+    }
+
+    const allProcessed = stats.pending === 0 && stats.processing === 0 && stats.total > 0;
+    const canAutoConsolidate =
+      allProcessed &&
+      stats.completed > 0 &&
+      !hasActiveJob &&
+      !hasCompletedJob &&
+      autoConsolidatedSessionRef.current !== session.id;
+
+    if (canAutoConsolidate) {
+      autoConsolidatedSessionRef.current = session.id;
+      void handleConsolidate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, processing, consolidating, generationJob]);
+
+  useEffect(() => {
+    if (!generationJob || !["pending", "running"].includes(generationJob.status)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/generation-jobs/${generationJob.id}`);
+        if (!response.ok) return;
+        const result = await response.json();
+        setGenerationJob(result.job);
+        if (result.job?.status === "completed" && result.job?.note_id) {
+          router.push(`/notes/${result.job.note_id}`);
+        }
+      } catch {
+        // 下一次轮询会继续恢复状态。
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [generationJob, router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="grid min-h-screen place-items-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan-700" />
       </div>
     );
   }
 
   if (error && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md">
+      <div className="grid min-h-screen place-items-center bg-slate-50 px-5">
+        <Card className="w-full max-w-md border-slate-200 bg-white shadow-sm">
           <CardContent className="p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">会话不存在</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button asChild>
-              <Link href="/">返回首页</Link>
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+            <h2 className="text-xl font-black">导入记录不可用</h2>
+            <p className="mt-2 text-sm text-slate-500">{error}</p>
+            <Button className="mt-5" asChild>
+              <Link href="/upload">重新导入</Link>
             </Button>
           </CardContent>
         </Card>
@@ -187,205 +302,188 @@ export default function SessionDetailPage() {
   if (!data) return null;
 
   const { session, files, stats } = data;
-  const progress = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
+  const userStage = buildUserStage({ stats, generationJob });
   const allProcessed = stats.pending === 0 && stats.processing === 0 && stats.total > 0;
-  const canConsolidate = allProcessed && stats.completed > 0 && session.status !== "completed";
+  const hasActiveJob = generationJob && ["pending", "running"].includes(generationJob.status);
+  const hasCompletedJob = generationJob?.status === "completed" && !!generationJob.note_id;
+  const canConsolidate = allProcessed && stats.completed > 0 && !hasActiveJob && !hasCompletedJob;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Header */}
-      <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                返回
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/upload">
+                <ArrowLeft className="h-5 w-5" />
               </Link>
             </Button>
-            <div className="flex-1">
-              <h1 className="text-xl font-semibold">{session.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                创建于 {new Date(session.created_at).toLocaleString("zh-CN")}
+            <div>
+              <h1 className="line-clamp-1 text-xl font-black">{session.title}</h1>
+              <p className="text-sm text-slate-500">
+                {new Date(session.created_at).toLocaleString("zh-CN")} 创建
               </p>
             </div>
-            <Badge
-              className={statusColors[session.status] || statusColors.pending}
-            >
-              {statusText[session.status] || session.status}
-            </Badge>
           </div>
+          <Button variant="outline" onClick={fetchSession}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            刷新
+          </Button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 左侧：进度和操作 */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* 处理进度 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">处理进度</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>已完成</span>
-                    <span>{stats.completed} / {stats.total}</span>
-                  </div>
-                  <Progress value={progress} />
+      <main className="mx-auto grid max-w-6xl gap-6 px-5 py-6 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="space-y-6">
+          <Card className="border-slate-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-cyan-700" />
+                {userStage.title}
+              </CardTitle>
+              <CardDescription>{userStage.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <Progress value={userStage.progress} />
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  { title: "资料解析", description: "提取文本", done: stats.completed >= stats.total && stats.total > 0 },
+                  { title: "AI 生成", description: "生成学习笔记", done: generationJob?.status === "completed" },
+                  { title: "进入学习", description: "复述与测验", done: hasCompletedJob },
+                ].map((step, index) => {
+                  const active = userStage.activeIndex === index;
+                  return (
+                    <div key={step.title} className={`rounded-lg border p-4 ${active ? "border-cyan-300 bg-cyan-50" : "border-slate-200 bg-slate-50"}`}>
+                      <div className="mb-2 flex items-center gap-2">
+                        {step.done ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-600" />
+                        ) : active ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-cyan-700" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border border-slate-300" />
+                        )}
+                        <p className="font-bold">{step.title}</p>
+                      </div>
+                      <p className="text-sm text-slate-500">{step.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 whitespace-pre-line">
+                  {error}
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-gray-400" />
-                    <span>待处理: {stats.pending}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500" />
-                    <span>处理中: {stats.processing}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500" />
-                    <span>已完成: {stats.completed}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                    <span>失败: {stats.failed}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 操作按钮 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">操作</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {session.status === "pending" && (
-                  <Button
-                    className="w-full"
-                    onClick={handleProcess}
-                    disabled={processing}
-                  >
-                    {processing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        处理中...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 mr-2" />
-                        开始处理
-                      </>
-                    )}
-                  </Button>
-                )}
-
-                {session.status === "processing" && (
-                  <Button
-                    className="w-full"
-                    onClick={handleProcess}
-                    disabled={processing}
-                  >
-                    {processing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        继续处理...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        继续处理剩余文件
-                      </>
-                    )}
-                  </Button>
-                )}
-
+              <div className="flex flex-wrap gap-3">
                 {canConsolidate && (
-                  <Button
-                    className="w-full"
-                    onClick={handleConsolidate}
-                    disabled={consolidating}
-                  >
-                    {consolidating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        生成笔记中...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4 mr-2" />
-                        生成笔记
-                      </>
-                    )}
+                  <Button onClick={handleConsolidate} disabled={consolidating} className="bg-slate-950 text-white hover:bg-slate-800">
+                    {consolidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                    生成学习笔记
                   </Button>
                 )}
-
-                {session.status === "completed" && (
-                  <Button className="w-full" asChild>
-                    <Link href={`/notes?sessionId=${session.id}`}>
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      查看笔记
+                {generationJob?.status === "completed" && generationJob.note_id && (
+                  <Button className="bg-slate-950 text-white hover:bg-slate-800" asChild>
+                    <Link href={`/notes/${generationJob.note_id}`}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      查看生成笔记
                     </Link>
                   </Button>
                 )}
+                {stats.pending > 0 && (
+                  <Button variant="outline" onClick={handleProcess} disabled={processing}>
+                    {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    继续解析
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-                <Button variant="outline" className="w-full" onClick={fetchSession}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  刷新状态
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 右侧：文件列表 */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">文件列表</CardTitle>
-                <CardDescription>
-                  共 {files.length} 个文件
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {files.map((file) => (
-                    <div
-                      key={file.id}
-                      className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex-shrink-0">
-                        {categoryIcons[file.category] || categoryIcons.other}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {file.original_file_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatFileSize(file.file_size)}
-                        </p>
-                      </div>
-                      <Badge
-                        className={statusColors[file.status] || statusColors.pending}
-                      >
-                        {statusText[file.status] || file.status}
-                      </Badge>
-                      {file.status === "completed" && (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                      )}
-                      {file.status === "failed" && (
-                        <AlertCircle className="w-5 h-5 text-red-500" />
-                      )}
+          <Card className="border-slate-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle>资料列表</CardTitle>
+              <CardDescription>
+                共 {files.length} 项，已解析 {stats.completed} 项，失败 {stats.failed} 项。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {files.map((file) => (
+                  <div key={file.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                    <FileText className="h-5 w-5 shrink-0 text-slate-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{file.original_file_name}</p>
+                      <p className="text-xs text-slate-500">{formatFileSize(file.file_size)}</p>
+                      {file.error_message && <p className="mt-1 text-xs text-red-600">{file.error_message}</p>}
                     </div>
-                  ))}
+                    <Badge className={fileStatusClass(file.status)}>
+                      {fileStatusText[file.status] || file.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <aside className="space-y-6">
+          <Card className="border-slate-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle>当前状态</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-slate-950 p-4 text-white">
+                <p className="text-xs text-white/60">总资料</p>
+                <p className="mt-2 text-2xl font-black">{stats.total}</p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 p-4">
+                <p className="text-xs text-emerald-700">已解析</p>
+                <p className="mt-2 text-2xl font-black">{stats.completed}</p>
+              </div>
+              <div className="rounded-lg bg-cyan-50 p-4">
+                <p className="text-xs text-cyan-700">处理中</p>
+                <p className="mt-2 text-2xl font-black">{stats.processing + stats.pending}</p>
+              </div>
+              <div className="rounded-lg bg-rose-50 p-4">
+                <p className="text-xs text-rose-700">失败</p>
+                <p className="mt-2 text-2xl font-black">{stats.failed}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {generationJob && (
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>AI 生成进度</CardTitle>
+                <CardDescription>{jobStageText[generationJob.stage] || generationJob.stage}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Progress value={generationJob.progress} />
+                <div className="grid grid-cols-2 gap-2 text-sm text-slate-500">
+                  <span>状态：{generationJob.status}</span>
+                  <span>分块：{generationJob.processed_chunks}/{generationJob.total_chunks}</span>
+                  <span>失败：{generationJob.failed_chunks}</span>
+                  <span>进度：{generationJob.progress}%</span>
                 </div>
+                {generationJob.status === "failed" && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {generationJob.error_message || "AI 生成失败，请检查模型配置或重新尝试。"}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </div>
-        </div>
+          )}
+
+          <Card className="border-slate-200 bg-amber-50 shadow-sm">
+            <CardContent className="p-5">
+              <p className="font-black text-amber-900">说明</p>
+              <p className="mt-2 text-sm leading-6 text-amber-800">
+                “上传完成”只代表资料已进入处理队列。真正可学习的笔记会在资料解析和 AI 生成完成后出现。
+              </p>
+            </CardContent>
+          </Card>
+        </aside>
       </main>
     </div>
   );

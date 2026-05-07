@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApiClient } from "@/storage/database/supabase-client";
+import { getUserFromRequest } from "@/lib/auth";
+import { generateImportedLearningNote } from "@/lib/services/import-note";
 import { z } from "zod";
 
 const textUploadSchema = z.object({
@@ -11,22 +13,38 @@ const textUploadSchema = z.object({
 // POST /api/upload/text - 处理文本输入
 export async function POST(request: NextRequest) {
   try {
+    const user = getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     // 验证请求数据
     const validatedData = textUploadSchema.parse(body);
 
     const client = getApiClient();
+    const importedNote = await generateImportedLearningNote({
+      title: validatedData.title,
+      sourceText: validatedData.content,
+      sourceLabel: "粘贴文本",
+      userId: user.id,
+    });
 
     // 创建笔记
     const { data, error } = await client
       .from("notes")
       .insert({
+        user_id: user.id,
         title: validatedData.title,
-        content: validatedData.content,
-        content_type: validatedData.contentType,
+        content: importedNote.content,
+        content_type: "markdown",
+        summary: importedNote.summary,
+        tags: importedNote.tags,
+        key_points: importedNote.keyPoints,
+        mind_map: importedNote.mindMap,
         source_type: "text",
-        status: "draft",
+        status: "processed",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiClient } from "@/storage/database/supabase-client";
 import { getUserFromRequest } from "@/lib/auth";
 
-// DELETE /api/trash/[id] - 永久删除回收站中的笔记
+// DELETE /api/trash/[id] - 永久删除回收站内容
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,6 +15,22 @@ export async function DELETE(
 
     const { id } = await params;
     const client = getApiClient();
+    const type = new URL(request.url).searchParams.get("type");
+
+    if (type === "learning_goal") {
+      const { error } = await client
+        .from("learning_goals")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .eq("status", "archived");
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      return NextResponse.json({ message: "Learning space permanently deleted" });
+    }
 
     const { error } = await client
       .from("notes")
@@ -29,7 +45,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Note permanently deleted" });
   } catch (error) {
-    console.error("Error permanently deleting note:", error);
+    console.error("Error permanently deleting trash item:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

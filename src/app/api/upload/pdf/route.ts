@@ -4,6 +4,7 @@ import { getStorageConfig } from "@/lib/env-utils";
 import { createS3Client } from "@/lib/storage/s3";
 import { parsePdf } from "@/lib/parsers/pdf";
 import { getUserFromRequest } from "@/lib/auth";
+import { generateImportedLearningNote } from "@/lib/services/import-note";
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,17 +41,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const noteTitle = title || file.name.replace(/\.pdf$/i, "");
+    const importedNote = await generateImportedLearningNote({
+      title: noteTitle,
+      sourceText: textContent || "",
+      sourceLabel: file.name,
+      userId: user.id,
+    });
+
     const client = getApiClient();
     const { data, error } = await client
       .from("notes")
       .insert({
         user_id: user.id,
-        title: title || file.name.replace(/\.pdf$/i, ""),
-        content: textContent || "PDF 解析失败，无法提取文本内容",
-        content_type: "text",
+        title: noteTitle,
+        content: importedNote.content,
+        content_type: "markdown",
+        summary: importedNote.summary,
+        tags: importedNote.tags,
+        key_points: importedNote.keyPoints,
+        mind_map: importedNote.mindMap,
         source_type: "pdf",
         source_url: fileKey,
-        status: "draft",
+        status: "processed",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

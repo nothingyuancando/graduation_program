@@ -405,6 +405,67 @@ export const userLlmConfigs = pgTable(
   ]
 );
 
+export const generationJobs = pgTable(
+  "generation_jobs",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: text("user_id").notNull(),
+    sessionId: varchar("session_id", { length: 36 }).notNull().references(() => uploadSessions.id, { onDelete: "cascade" }),
+    noteId: varchar("note_id", { length: 36 }).references(() => notes.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 50 }).notNull().default("pending"),
+    stage: varchar("stage", { length: 80 }).notNull().default("queued"),
+    progress: integer("progress").notNull().default(0),
+    totalChunks: integer("total_chunks").notNull().default(0),
+    processedChunks: integer("processed_chunks").notNull().default(0),
+    failedChunks: integer("failed_chunks").notNull().default(0),
+    model: varchar("model", { length: 200 }),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("generation_jobs_user_id_idx").on(table.userId),
+    index("generation_jobs_session_id_idx").on(table.sessionId),
+    index("generation_jobs_status_idx").on(table.status),
+    index("generation_jobs_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const generationJobChunks = pgTable(
+  "generation_job_chunks",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    jobId: varchar("job_id", { length: 36 }).notNull().references(() => generationJobs.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    sourceFileNames: text("source_file_names").array().notNull().default(sql`'{}'::text[]`),
+    chunkText: text("chunk_text").notNull(),
+    status: varchar("status", { length: 50 }).notNull().default("pending"),
+    analysisJson: jsonb("analysis_json"),
+    errorMessage: text("error_message"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("generation_job_chunks_job_id_idx").on(table.jobId),
+    index("generation_job_chunks_status_idx").on(table.status),
+    index("generation_job_chunks_job_status_idx").on(table.jobId, table.status),
+    unique("generation_job_chunks_job_index_unique").on(table.jobId, table.chunkIndex),
+  ]
+);
+
 // ========== Zod Schemas ==========
 
 const { createInsertSchema: createCoercedInsertSchema } = createSchemaFactory({
@@ -629,3 +690,5 @@ export type InsertStudyCheckin = z.infer<typeof insertStudyCheckinSchema>;
 
 export type UserSkill = typeof userSkills.$inferSelect;
 export type UserLlmConfig = typeof userLlmConfigs.$inferSelect;
+export type GenerationJob = typeof generationJobs.$inferSelect;
+export type GenerationJobChunk = typeof generationJobChunks.$inferSelect;

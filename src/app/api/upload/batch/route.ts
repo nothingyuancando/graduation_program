@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiClient } from "@/storage/database/supabase-client";
-import { getStorageConfig } from "@/lib/env-utils";
-import { createS3Client } from "@/lib/storage/s3";
 import { getUserFromRequest } from "@/lib/auth";
+import { getStorageConfig } from "@/lib/env-utils";
+import { parseDocx, isDocxFile, isLegacyDocFile } from "@/lib/parsers/docx";
 import { parsePdf } from "@/lib/parsers/pdf";
-import { isDocxFile, isLegacyDocFile, parseDocx } from "@/lib/parsers/docx";
+import { createS3Client } from "@/lib/storage/s3";
+import { getApiClient } from "@/storage/database/supabase-client";
 
 function classifyFile(mimeType: string, fileName: string): string {
   const lowerName = fileName.toLowerCase();
@@ -19,23 +19,26 @@ function classifyFile(mimeType: string, fileName: string): string {
     lowerName.endsWith(".txt") ||
     lowerName.endsWith(".md") ||
     lowerName.endsWith(".html")
-  ) return "text";
+  ) {
+    return "text";
+  }
   if (mimeType.startsWith("image/")) return "image";
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint") ||
-    fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) return "presentation";
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") ||
-    mimeType.includes("csv") || fileName.endsWith(".xls") ||
-    fileName.endsWith(".xlsx") || fileName.endsWith(".csv")) return "spreadsheet";
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint") || lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) {
+    return "presentation";
+  }
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv")) {
+    return "spreadsheet";
+  }
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.startsWith("video/")) return "video";
-  if (mimeType.includes("zip") || mimeType.includes("rar") ||
-    mimeType.includes("compressed") || fileName.endsWith(".zip") ||
-    fileName.endsWith(".rar") || fileName.endsWith(".7z")) return "archive";
+  if (mimeType.includes("zip") || mimeType.includes("rar") || mimeType.includes("compressed") || lowerName.endsWith(".zip") || lowerName.endsWith(".rar") || lowerName.endsWith(".7z")) {
+    return "archive";
+  }
   return "other";
 }
 
 async function extractInlineText(file: File, fileBuffer: Buffer) {
-  if (file.type === "application/pdf") {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     return parsePdf(fileBuffer);
   }
 
@@ -44,7 +47,7 @@ async function extractInlineText(file: File, fileBuffer: Buffer) {
   }
 
   if (isLegacyDocFile(file.name, file.type)) {
-    return `[Word 97-2003 文件：${file.name}，暂不支持 .doc 二进制格式，请另存为 .docx 后重新上传]`;
+    return `[Word 97-2003 文件：${file.name}。暂不支持 .doc 二进制格式，请另存为 .docx 后重新上传。]`;
   }
 
   if (
@@ -70,28 +73,26 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
-    const title = (formData.get("title") as string) || "未整理笔记";
-    const urls = (formData.get("urls") as string)?.split(",").filter(Boolean) || [];
+    const title = (formData.get("title") as string) || "资料导入";
+    const urls = ((formData.get("urls") as string) || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
 
     if (files.length === 0 && urls.length === 0) {
-      return NextResponse.json({ error: "未提供文件或 URL" }, { status: 400 });
+      return NextResponse.json({ error: "请至少选择一个文件或添加一个网页链接" }, { status: 400 });
     }
 
     const client = getApiClient();
     const storageConfig = getStorageConfig();
     const storage = storageConfig ? createS3Client(storageConfig) : null;
 
-    // 验证 user_id 在 users 表中实际存在（防止旧 JWT 对应已删除的用户）
-    const { data: userRow } = await client
-      .from("users")
-      .select("id")
-      .eq("id", user.id)
-      .single();
+    const { data: userRow } = await client.from("users").select("id").eq("id", user.id).single();
     if (!userRow) {
       return NextResponse.json({ error: "用户不存在，请重新登录" }, { status: 401 });
     }
 
-    // 创建上传会话
+    const now = new Date().toISOString();
     const { data: session, error: sessionError } = await client
       .from("upload_sessions")
       .insert({
@@ -100,34 +101,28 @@ export async function POST(request: NextRequest) {
         status: "pending",
         total_files: files.length + urls.length,
         processed_files: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();
 
     if (sessionError || !session) {
-      return NextResponse.json({ error: "创建上传会话失败", detail: sessionError?.message }, { status: 500 });
+      return NextResponse.json({ error: "创建导入任务失败", detail: sessionError?.message }, { status: 500 });
     }
 
     const fileQueueItems = [];
 
-    // 处理文件
     for (const file of files) {
       const fileBuffer = Buffer.from(await file.arrayBuffer());
-      let fileKey: string;
-
       const inlineText = storage ? null : await extractInlineText(file, fileBuffer);
-
-      if (storage) {
-        fileKey = await storage.uploadFile({
-          fileContent: fileBuffer,
-          fileName: `uploads/${user.id}/${session.id}/${Date.now()}_${file.name}`,
-          contentType: file.type,
-        });
-      } else {
-        fileKey = `local:${file.name}`;
-      }
+      const fileKey = storage
+        ? await storage.uploadFile({
+            fileContent: fileBuffer,
+            fileName: `uploads/${user.id}/${session.id}/${Date.now()}_${file.name}`,
+            contentType: file.type,
+          })
+        : `local:${file.name}`;
 
       fileQueueItems.push({
         session_id: session.id,
@@ -142,7 +137,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 处理 URL
     for (const url of urls) {
       fileQueueItems.push({
         session_id: session.id,
@@ -156,10 +150,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { error: queueError } = await client
-      .from("file_processing_queue")
-      .insert(fileQueueItems);
-
+    const { error: queueError } = await client.from("file_processing_queue").insert(fileQueueItems);
     if (queueError) {
       return NextResponse.json({ error: "创建处理队列失败", detail: queueError.message }, { status: 500 });
     }
@@ -178,16 +169,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       session,
-      message: "上传成功",
+      message: "导入任务已创建",
       stats: {
         totalFiles: files.length + urls.length,
         storageMode: storage ? "s3" : "local",
       },
-      warning: storage ? undefined : "未配置对象存储，文件暂存本地，请配置 S3_BUCKET_ENDPOINT_URL 和 S3_BUCKET_NAME 后重新上传以启用完整处理。",
+      warning: storage ? undefined : "未配置对象存储，文件会以本地解析结果进入队列。生产环境建议配置 S3。",
     });
   } catch (error) {
     console.error("Error in batch upload:", error);
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: "服务器内部错误", detail: msg }, { status: 500 });
+    const detail = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: "服务器内部错误", detail }, { status: 500 });
   }
 }

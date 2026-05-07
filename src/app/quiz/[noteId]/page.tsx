@@ -56,6 +56,7 @@ export default function QuizPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // 答题状态
@@ -99,11 +100,16 @@ export default function QuizPage() {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenerateError("");
     try {
       const res = await fetch(`/api/notes/${noteId}/quiz/generate`, {
         method: "POST",
       });
       const data = await res.json();
+      if (!res.ok) {
+        setGenerateError(data.detail || data.error || "生成测验失败，请稍后重试");
+        return;
+      }
       if (data.quiz) {
         await fetchQuizzes();
         // 自动进入新生成的测验
@@ -113,6 +119,7 @@ export default function QuizPage() {
       }
     } catch (error) {
       console.error("Error generating quiz:", error);
+      setGenerateError("生成测验失败，请检查网络或稍后重试");
     } finally {
       setGenerating(false);
     }
@@ -222,6 +229,12 @@ export default function QuizPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {generateError && (
+          <div className="mx-auto mb-6 max-w-3xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+            {generateError}
+          </div>
+        )}
+
         {activeQuiz && !result ? (
           /* 答题界面 */
           <div className="max-w-3xl mx-auto space-y-6">

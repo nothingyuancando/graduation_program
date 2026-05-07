@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, GitFork, Library, Search, Share2, Tags } from "lucide-react";
+import { ArrowLeft, GitFork, Network, Search, Sparkles, Tags, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type PublicNote = {
+type PublicLoop = {
   id: string;
   title: string;
   summary?: string | null;
@@ -19,8 +19,8 @@ type PublicNote = {
   fork_count?: number | null;
 };
 
-export default function PublicNotesPage() {
-  const [notes, setNotes] = useState<PublicNote[]>([]);
+export default function LearningLoopPlazaPage() {
+  const [loops, setLoops] = useState<PublicLoop[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -42,12 +42,12 @@ export default function PublicNotesPage() {
           signal: controller.signal,
         });
         const data = await response.json();
-        setNotes(data.notes || []);
+        setLoops(data.notes || []);
         setTags(data.tags || []);
         setSubjects(data.subjects || []);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
-          console.error("Error loading public notes:", error);
+          console.error("Error loading public learning loops:", error);
         }
       } finally {
         setLoading(false);
@@ -64,50 +64,50 @@ export default function PublicNotesPage() {
     return {
       subjects: subjects.length,
       tags: tags.length,
-      forks: notes.reduce((sum, note) => sum + (note.fork_count || 0), 0),
+      forks: loops.reduce((sum, loop) => sum + (loop.fork_count || 0), 0),
     };
-  }, [notes, subjects.length, tags.length]);
+  }, [loops, subjects.length, tags.length]);
 
   return (
-    <div className="min-h-screen bg-[#f6f1e8] text-slate-950">
-      <header className="border-b border-slate-950/10 bg-[#fbf7ef]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
           <Button variant="ghost" asChild>
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              返回工作台
+              返回首页
             </Link>
           </Button>
           <Badge className="bg-slate-950 text-white hover:bg-slate-950">
-            协作笔记
+            学习闭环广场
           </Badge>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-5 py-8 md:px-8">
-        <section className="rounded-2xl border border-slate-950/10 bg-white/80 p-6 shadow-sm md:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-end">
+      <main className="mx-auto max-w-7xl space-y-6 px-5 py-6 md:px-8">
+        <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
             <div>
-              <Badge className="mb-4 bg-[#f7c76b] text-slate-950 hover:bg-[#f7c76b]">
-                公开笔记广场
+              <Badge className="mb-4 bg-amber-100 text-slate-950 hover:bg-amber-100">
+                可 Fork 的学习空间模板
               </Badge>
-              <h1 className="text-3xl font-black tracking-tight md:text-5xl">
-                浏览别人公开的学习笔记，一键 Fork 到自己的知识库。
+              <h1 className="max-w-4xl text-3xl font-black leading-tight md:text-5xl">
+                不只 Fork 一篇笔记，而是 Fork 一套可以继续学习的闭环。
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
-                按学科和主题标签发现可复用的笔记。Fork 后会生成你的私人副本，之后可以继续编辑、复习和生成测验。
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 md:text-base">
+                每个公开内容会被当作一个学习闭环模板：包含学习主题、核心笔记、标签概念和初始学习计划。Fork 后系统会自动创建你的学习空间，并把材料带入其中。
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl bg-slate-950 p-4 text-white">
-                <p className="text-xs text-white/60">公开笔记</p>
-                <p className="mt-2 text-2xl font-black">{notes.length}</p>
+              <div className="rounded-lg bg-slate-950 p-4 text-white">
+                <p className="text-xs text-white/60">闭环模板</p>
+                <p className="mt-2 text-2xl font-black">{loops.length}</p>
               </div>
-              <div className="rounded-2xl bg-cyan-50 p-4">
+              <div className="rounded-lg bg-cyan-50 p-4">
                 <p className="text-xs text-cyan-700">学科</p>
                 <p className="mt-2 text-2xl font-black">{stats.subjects}</p>
               </div>
-              <div className="rounded-2xl bg-emerald-50 p-4">
+              <div className="rounded-lg bg-emerald-50 p-4">
                 <p className="text-xs text-emerald-700">Fork</p>
                 <p className="mt-2 text-2xl font-black">{stats.forks}</p>
               </div>
@@ -115,16 +115,16 @@ export default function PublicNotesPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <Card className="border-slate-950/10 bg-white/80 shadow-sm">
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <Card className="border-slate-200 bg-white shadow-sm">
             <CardContent className="p-4">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索标题、摘要、学科或标签"
-                  className="h-12 rounded-xl border-slate-950/10 bg-white pl-11"
+                  placeholder="搜索学习主题、摘要、学科或概念标签"
+                  className="h-11 rounded-lg border-slate-200 bg-white pl-11"
                 />
               </div>
             </CardContent>
@@ -132,7 +132,7 @@ export default function PublicNotesPage() {
 
           <Button
             variant="outline"
-            className="h-full min-h-12 border-slate-950/10 bg-white/80"
+            className="h-full min-h-11 border-slate-200 bg-white"
             onClick={() => {
               setActiveTag("");
               setActiveSubject("");
@@ -145,11 +145,11 @@ export default function PublicNotesPage() {
 
         <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-4">
-            <Card className="border-slate-950/10 bg-white/80 shadow-sm">
+            <Card className="border-slate-200 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Library className="h-4 w-4" />
-                  学科
+                  <Target className="h-4 w-4" />
+                  学科方向
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
@@ -171,11 +171,11 @@ export default function PublicNotesPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-950/10 bg-white/80 shadow-sm">
+            <Card className="border-slate-200 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Tags className="h-4 w-4" />
-                  主题标签
+                  概念标签
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
@@ -197,36 +197,40 @@ export default function PublicNotesPage() {
           {loading ? (
             <div className="grid gap-4 md:grid-cols-2">
               {[1, 2, 3, 4].map((item) => (
-                <Skeleton key={item} className="h-48 rounded-2xl" />
+                <Skeleton key={item} className="h-56 rounded-lg" />
               ))}
             </div>
-          ) : notes.length ? (
+          ) : loops.length ? (
             <div className="grid gap-4 md:grid-cols-2">
-              {notes.map((note) => (
-                <Link key={note.id} href={`/share/${note.id}`}>
-                  <Card className="h-full border-slate-950/10 bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              {loops.map((loop) => (
+                <Link key={loop.id} href={`/share/${loop.id}`}>
+                  <Card className="h-full border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                     <CardHeader className="pb-3">
                       <div className="mb-2 flex flex-wrap gap-2">
-                        {note.subject && <Badge className="bg-cyan-50 text-cyan-700 hover:bg-cyan-50">{note.subject}</Badge>}
+                        <Badge className="bg-slate-950 text-white hover:bg-slate-950">
+                          <Network className="mr-1 h-3 w-3" />
+                          闭环模板
+                        </Badge>
+                        {loop.subject && <Badge className="bg-cyan-50 text-cyan-700 hover:bg-cyan-50">{loop.subject}</Badge>}
                         <Badge variant="outline">
                           <GitFork className="mr-1 h-3 w-3" />
-                          {note.fork_count || 0}
+                          {loop.fork_count || 0}
                         </Badge>
                       </div>
-                      <CardTitle className="line-clamp-2 text-xl">{note.title}</CardTitle>
+                      <CardTitle className="line-clamp-2 text-xl">{loop.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">
-                        {note.summary || "这篇公开笔记暂时没有摘要，打开后可以查看完整内容。"}
+                        {loop.summary || "这个公开闭环暂时没有摘要，打开后可以查看核心材料并 Fork 成自己的学习空间。"}
                       </p>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {(note.tags || []).slice(0, 5).map((tag) => (
+                        {(loop.tags || []).slice(0, 6).map((tag) => (
                           <Badge key={tag} variant="outline">#{tag}</Badge>
                         ))}
                       </div>
                       <div className="mt-5 flex items-center text-sm font-semibold text-slate-800">
-                        <Share2 className="mr-2 h-4 w-4" />
-                        查看并 Fork
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        查看并 Fork 学习闭环
                       </div>
                     </CardContent>
                   </Card>
@@ -234,10 +238,10 @@ export default function PublicNotesPage() {
               ))}
             </div>
           ) : (
-            <Card className="border-dashed border-slate-950/20 bg-white/70">
+            <Card className="border-dashed border-slate-300 bg-white">
               <CardContent className="px-6 py-16 text-center">
-                <Share2 className="mx-auto mb-4 h-12 w-12 text-slate-400" />
-                <h2 className="text-xl font-black">还没有匹配的公开笔记</h2>
+                <Network className="mx-auto mb-4 h-12 w-12 text-slate-400" />
+                <h2 className="text-xl font-black">还没有匹配的公开学习闭环</h2>
                 <p className="mt-2 text-sm text-slate-500">换个关键词或清空筛选试试。</p>
               </CardContent>
             </Card>

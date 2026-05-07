@@ -11,6 +11,31 @@ export interface SkillInput {
   metadata?: Record<string, unknown>;
 }
 
+export type SkillRiskLevel = "low" | "medium" | "high";
+export type SkillInstallType = "builtin" | "remote";
+
+export interface SkillManifest {
+  id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  intents: string[];
+  enabled: boolean;
+  source: "builtin" | "marketplace";
+  installType: SkillInstallType;
+  riskLevel: SkillRiskLevel;
+  toolNames: string[];
+  requiresUserConfirmation: boolean;
+  installNotes?: string;
+}
+
+export interface SkillInstallResult {
+  success: boolean;
+  installed: boolean;
+  skill?: SkillManifest;
+  message: string;
+}
+
 export interface SkillResult<TData extends Record<string, unknown> = Record<string, unknown>> {
   skillId: string;
   success: boolean;

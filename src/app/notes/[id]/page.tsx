@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,12 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  Columns2,
   FileDown,
   ExternalLink,
   Eye,
   Code,
+  PanelRightOpen,
   ThumbsUp,
   ThumbsDown,
   Pencil,
@@ -118,11 +120,110 @@ interface Note {
   fork_count?: number;
 }
 
-interface Entity {
+interface MindMapNode {
   id: string;
-  entity_type: string;
-  entity_name: string;
+  label: string;
   description?: string;
+  type?: string;
+  children?: MindMapNode[];
+}
+
+function keyPointText(item: NonNullable<Note["key_points"]>[number]) {
+  return typeof item === "object" && item !== null && "point" in item ? item.point : String(item);
+}
+
+function cleanHeading(value: string) {
+  return value
+    .replace(/^#+\s*/, "")
+    .replace(/\*\*/g, "")
+    .replace(/\[\[|\]\]/g, "")
+    .trim();
+}
+
+function excerpt(value: string, maxLength = 80) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function buildMindMapFromNote(note: Note): MindMapNode {
+  const lines = note.content.split(/\r?\n/);
+  const headings = lines
+    .map((line) => line.match(/^(#{2,4})\s+(.+)$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .slice(0, 8);
+
+  const headingNodes = headings.map((match, index) => {
+    const heading = cleanHeading(match[2]);
+    const startLine = lines.findIndex((line) => line.trim() === match[0].trim());
+    const nextHeading = lines.findIndex((line, lineIndex) => lineIndex > startLine && /^#{2,4}\s+/.test(line));
+    const sectionLines = lines
+      .slice(startLine + 1, nextHeading === -1 ? startLine + 8 : nextHeading)
+      .filter((line) => line.trim() && !/^[-*]\s*$/.test(line));
+
+    return {
+      id: `section-${index}`,
+      label: heading,
+      description: excerpt(sectionLines.join(" "), 96),
+      type: "section",
+    };
+  });
+
+  const keyPointNodes = (note.key_points || [])
+    .map(keyPointText)
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((point, index) => ({
+      id: `key-point-${index}`,
+      label: excerpt(point, 30),
+      description: excerpt(point, 90),
+      type: "key_point",
+    }));
+
+  const children: MindMapNode[] = [];
+  if (note.summary) {
+    children.push({
+      id: "summary",
+      label: "学习摘要",
+      description: excerpt(note.summary, 120),
+      type: "summary",
+    });
+  }
+  if (headingNodes.length > 0) {
+    children.push({
+      id: "sections",
+      label: "笔记结构",
+      description: "根据 Markdown 小节自动整理",
+      type: "group",
+      children: headingNodes,
+    });
+  }
+  if (keyPointNodes.length > 0) {
+    children.push({
+      id: "key-points",
+      label: "核心要点",
+      description: "来自 AI 提炼的关键知识点",
+      type: "group",
+      children: keyPointNodes,
+    });
+  }
+
+  if (children.length === 0) {
+    children.push({
+      id: "content",
+      label: "笔记内容",
+      description: excerpt(note.content, 120),
+      type: "content",
+    });
+  }
+
+  return {
+    id: note.id,
+    label: note.title || "学习笔记",
+    description: note.tags?.slice(0, 4).join(" / "),
+    type: "note",
+    children,
+  };
 }
 
 // 简单的 Markdown 渲染组件
@@ -238,7 +339,6 @@ export default function NoteDetailPage() {
   const noteId = params.id as string;
 
   const [note, setNote] = useState<Note | null>(null);
-  const [, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -247,7 +347,7 @@ export default function NoteDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedContent, setEditedContent] = useState("");
-  const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
+  const [viewMode, setViewMode] = useState<"split" | "preview" | "source">("preview");
 
   // 反馈相关状态
   const [feedbackLoading, setFeedbackLoading] = useState<number | null>(null);
@@ -257,7 +357,6 @@ export default function NoteDetailPage() {
 
   useEffect(() => {
     fetchNote();
-    fetchEntities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId]);
 
@@ -274,18 +373,6 @@ export default function NoteDetailPage() {
       console.error("Error fetching note:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchEntities = async () => {
-    try {
-      const response = await fetch(`/api/notes/${noteId}/entities`);
-      const data = await response.json();
-      if (data.entities) {
-        setEntities(data.entities);
-      }
-    } catch (error) {
-      console.error("Error fetching entities:", error);
     }
   };
 
@@ -325,7 +412,6 @@ export default function NoteDetailPage() {
       const data = await response.json();
       if (data.analysis) {
         await fetchNote();
-        await fetchEntities();
       }
     } catch (error) {
       console.error("Error analyzing note:", error);
@@ -461,6 +547,11 @@ export default function NoteDetailPage() {
     setEditingPointIndex(null);
     setEditingPointText("");
   };
+
+  const mindMapData = useMemo(() => {
+    if (!note) return null;
+    return note.mind_map || buildMindMapFromNote(note);
+  }, [note]);
 
   if (loading) {
     return (
@@ -628,26 +719,69 @@ export default function NoteDetailPage() {
             <TabsTrigger value="mindmap">思维导图</TabsTrigger>
             <TabsTrigger value="flashcards">知识卡片</TabsTrigger>
             <TabsTrigger value="analysis">AI分析</TabsTrigger>
-            <TabsTrigger value="entities">知识要素</TabsTrigger>
             <TabsTrigger value="quiz">练习测验</TabsTrigger>
           </TabsList>
 
           {/* 内容标签页 */}
           <TabsContent value="content">
             {editing ? (
-              <Card>
+              <Card className="overflow-hidden">
                 <CardHeader>
-                  <CardTitle>编辑笔记</CardTitle>
-                  <CardDescription>支持 Markdown 格式</CardDescription>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>编辑笔记</CardTitle>
+                      <CardDescription>支持 Markdown，右侧会实时渲染成阅读视图。</CardDescription>
+                    </div>
+                    <div className="flex rounded-md border bg-background p-1">
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant={viewMode === "split" ? "default" : "ghost"}
+                        onClick={() => setViewMode("split")}
+                      >
+                        <Columns2 className="h-4 w-4 mr-1" />
+                        双栏
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant={viewMode === "preview" ? "default" : "ghost"}
+                        onClick={() => setViewMode("preview")}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        预览
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant={viewMode === "source" ? "default" : "ghost"}
+                        onClick={() => setViewMode("source")}
+                      >
+                        <PanelRightOpen className="h-4 w-4 mr-1" />
+                        源码
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={editedContent}
-                    onChange={(e) => setEditedContent(e.target.value)}
-                    placeholder="笔记内容（支持 Markdown 格式）"
-                    rows={25}
-                    className="font-mono text-sm"
-                  />
+                <CardContent className="p-0">
+                  <div className={viewMode === "split" ? "grid lg:grid-cols-2" : ""}>
+                    {viewMode !== "preview" && (
+                      <div className="border-slate-200 lg:border-r dark:border-slate-800">
+                        <Textarea
+                          value={editedContent}
+                          onChange={(e) => setEditedContent(e.target.value)}
+                          placeholder="笔记内容（支持 Markdown 格式）"
+                          rows={25}
+                          className="min-h-[680px] rounded-none border-0 p-6 font-mono text-sm leading-7 shadow-none focus-visible:ring-0"
+                        />
+                      </div>
+                    )}
+                    {viewMode !== "source" && (
+                      <div className="min-h-[680px] bg-white p-6 dark:bg-slate-950">
+                        <MarkdownRenderer content={editedContent} />
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -690,7 +824,7 @@ export default function NoteDetailPage() {
           {/* 思维导图标签页 */}
           <TabsContent value="mindmap">
             <div className="space-y-6">
-              <MindMapViewer data={note.mind_map!} />
+              <MindMapViewer data={mindMapData} />
               <TimelineViewer events={note.timeline || []} />
               <ComparisonViewer comparisons={note.comparisons || []} />
             </div>

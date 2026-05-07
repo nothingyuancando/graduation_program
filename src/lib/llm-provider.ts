@@ -6,8 +6,6 @@
  * 3. 鎴栧湪浠ｇ爜涓€氳繃 options.model 鎸囧畾鍏蜂綋妯″瀷
  */
 
-import { getApiClient } from "@/storage/database/supabase-client";
-
 // ==================== 绫诲瀷瀹氫箟 ====================
 
 /** 鏀寔鐨凩LM鎻愪緵鍟?*/
@@ -76,16 +74,6 @@ export interface LLMConfigOptions {
   enableThinking?: boolean;
 }
 
-export interface UserLLMRuntimeConfig {
-  provider: LLMProvider;
-  model: string;
-  baseURL?: string | null;
-  apiKey?: string | null;
-  temperature?: number | string | null;
-  maxTokens?: number | string | null;
-  enabled?: boolean | null;
-}
-
 /** 鎻愪緵鍟嗛厤缃?*/
 
 type ChatCompletionRequestBody = {
@@ -101,6 +89,66 @@ export interface ProviderConfig {
   defaultModel: string;
   models: string[];
   envKey: string;  // 鐜鍙橀噺鍚?}
+}
+
+function buildLLMErrorMessage(input: {
+  provider: LLMProvider;
+  status: number;
+  rawError: string;
+  model: string;
+  baseURL: string;
+}) {
+  let providerMessage = input.rawError;
+  let errorCode = "";
+
+  try {
+    const parsed = JSON.parse(input.rawError) as {
+      error?: { code?: string; message?: string; type?: string };
+      message?: string;
+    };
+    providerMessage = parsed.error?.message || parsed.message || input.rawError;
+    errorCode = parsed.error?.code || "";
+  } catch {
+    // Keep the raw provider text when the response is not JSON.
+  }
+
+  const hints: string[] = [];
+  if (errorCode === "model_not_found" || /model[_ -]?not[_ -]?found/i.test(providerMessage)) {
+    hints.push(`当前模型 "${input.model}" 在这个接口下不可用，请到服务商后台复制“精确模型名”。`);
+    if (/^gpt\d/i.test(input.model)) {
+      hints.push("如果你想填 OpenAI 风格模型名，通常需要连字符，例如 gpt-5.5，而不是 gpt5.5。");
+    }
+    if (input.provider === "custom") {
+      hints.push("自定义接口不会自动发现模型列表，Base URL、API Key 和模型名必须和网关渠道配置完全匹配。");
+    }
+  }
+
+  return [
+    `LLM API Error (${input.provider}): ${input.status}`,
+    `模型：${input.model}`,
+    `接口：${input.baseURL}`,
+    `服务商返回：${providerMessage}`,
+    ...hints.map((hint) => `建议：${hint}`),
+  ].join("\n");
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = Number(process.env.LLM_REQUEST_TIMEOUT_MS || 30000)) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`LLM request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ==================== 鎻愪緵鍟嗛厤缃?====================
@@ -249,15 +297,8 @@ function getProviderBaseURL(provider: LLMProvider): string {
 export class LLMClient {
   private defaultProvider: LLMProvider;
   private defaultModel: string;
-  private userId?: string;
-  private runtimeConfig?: UserLLMRuntimeConfig | null;
-  private runtimeConfigLoaded = false;
 
-  constructor(options?: { provider?: LLMProvider; model?: string; userId?: string; runtimeConfig?: UserLLMRuntimeConfig | null }) {
-    this.userId = options?.userId;
-    this.runtimeConfig = options?.runtimeConfig;
-    this.runtimeConfigLoaded = options?.runtimeConfig !== undefined;
-
+  constructor(options?: { provider?: LLMProvider; model?: string; userId?: string }) {
     // 纭畾榛樿鎻愪緵鍟?
     const envProvider = process.env.LLM_PROVIDER as LLMProvider;
     
@@ -281,45 +322,6 @@ export class LLMClient {
       'gpt-4o-mini';
   }
 
-  private async getRuntimeConfig(): Promise<UserLLMRuntimeConfig | null> {
-    if (this.runtimeConfigLoaded) return this.runtimeConfig || null;
-    this.runtimeConfigLoaded = true;
-
-    if (!this.userId) {
-      this.runtimeConfig = null;
-      return null;
-    }
-
-    try {
-      const client = getApiClient();
-      const { data } = await client
-        .from("user_llm_configs")
-        .select("provider, model, base_url, api_key, temperature, max_tokens, enabled")
-        .eq("user_id", this.userId)
-        .eq("enabled", true)
-        .single();
-
-      if (!data) {
-        this.runtimeConfig = null;
-        return null;
-      }
-
-      this.runtimeConfig = {
-        provider: data.provider as LLMProvider,
-        model: data.model,
-        baseURL: data.base_url,
-        apiKey: data.api_key,
-        temperature: data.temperature,
-        maxTokens: data.max_tokens,
-        enabled: data.enabled,
-      };
-      return this.runtimeConfig;
-    } catch {
-      this.runtimeConfig = null;
-      return null;
-    }
-  }
-
   /**
    * 璋冪敤澶фā鍨嬶紙闈炴祦寮忥級
    */
@@ -327,20 +329,24 @@ export class LLMClient {
     messages: ChatMessage[],
     options?: LLMConfigOptions
   ): Promise<LLMResponse> {
-    const runtimeConfig = await this.getRuntimeConfig();
-    const provider = options?.provider || runtimeConfig?.provider || this.defaultProvider;
-    const model = options?.model || runtimeConfig?.model || this.defaultModel;
+    const provider = options?.provider || this.defaultProvider;
+    const model = options?.model || this.defaultModel;
     
     // 楠岃瘉 API Key
-    const apiKey = runtimeConfig?.apiKey || getProviderApiKey(provider);
-    const baseURL = runtimeConfig?.baseURL || getProviderBaseURL(provider);
+    const apiKey = getProviderApiKey(provider);
+    const baseURL = getProviderBaseURL(provider);
+    const configuredMaxTokens = Number(process.env.LLM_MAX_TOKENS || 4096);
+    const requestedMaxTokens = options?.maxTokens ? Number(options.maxTokens) : undefined;
+    const maxTokens = requestedMaxTokens
+      ? Math.min(requestedMaxTokens, configuredMaxTokens)
+      : configuredMaxTokens;
     
     // 鏋勫缓璇锋眰
     const requestBody: ChatCompletionRequestBody = {
       model,
       messages,
-      temperature: options?.temperature ?? Number(runtimeConfig?.temperature ?? process.env.LLM_TEMPERATURE ?? 0.7),
-      max_tokens: options?.maxTokens || Number(runtimeConfig?.maxTokens || process.env.LLM_MAX_TOKENS || 4096),
+      temperature: options?.temperature ?? Number(process.env.LLM_TEMPERATURE ?? 0.7),
+      max_tokens: maxTokens,
     };
     
     // DeepSeek R1 绛夋€濊€冩ā鍨嬬壒娈婂鐞?
@@ -355,7 +361,7 @@ export class LLMClient {
     }
     
     // 鍙戦€佽姹?
-    const response = await fetch(`${baseURL}/chat/completions`, {
+    const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -366,7 +372,7 @@ export class LLMClient {
     
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`LLM API Error (${provider}): ${response.status} - ${error}`);
+      throw new Error(buildLLMErrorMessage({ provider, status: response.status, rawError: error, model, baseURL }));
     }
     
     const data = await response.json();
@@ -389,21 +395,20 @@ export class LLMClient {
     messages: ChatMessage[],
     options?: LLMConfigOptions
   ): AsyncGenerator<string, void, unknown> {
-    const runtimeConfig = await this.getRuntimeConfig();
-    const provider = options?.provider || runtimeConfig?.provider || this.defaultProvider;
-    const model = options?.model || runtimeConfig?.model || this.defaultModel;
+    const provider = options?.provider || this.defaultProvider;
+    const model = options?.model || this.defaultModel;
     
-    const apiKey = runtimeConfig?.apiKey || getProviderApiKey(provider);
-    const baseURL = runtimeConfig?.baseURL || getProviderBaseURL(provider);
+    const apiKey = getProviderApiKey(provider);
+    const baseURL = getProviderBaseURL(provider);
     
     const requestBody: ChatCompletionRequestBody = {
       model,
       messages,
       stream: true,
-      temperature: options?.temperature ?? Number(runtimeConfig?.temperature ?? process.env.LLM_TEMPERATURE ?? 0.7),
+      temperature: options?.temperature ?? Number(process.env.LLM_TEMPERATURE ?? 0.7),
     };
     
-    const response = await fetch(`${baseURL}/chat/completions`, {
+    const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -414,7 +419,7 @@ export class LLMClient {
     
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`LLM API Error (${provider}): ${response.status} - ${error}`);
+      throw new Error(buildLLMErrorMessage({ provider, status: response.status, rawError: error, model, baseURL }));
     }
     
     const reader = response.body?.getReader();
@@ -474,7 +479,7 @@ export function getLLMClient(): LLMClient {
 
 /**
  * 鍒涘缓鏂扮殑 LLM 瀹㈡埛绔紙鎺ㄨ崘锛? */
-export function createLLMClient(options?: { provider?: LLMProvider; model?: string; userId?: string; runtimeConfig?: UserLLMRuntimeConfig | null }): LLMClient {
+export function createLLMClient(options?: { provider?: LLMProvider; model?: string; userId?: string }): LLMClient {
   return new LLMClient(options);
 }
 

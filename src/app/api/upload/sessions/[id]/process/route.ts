@@ -8,6 +8,8 @@ import { isDocxFile, isLegacyDocFile, parseDocx } from "@/lib/parsers/docx";
 import { fetchUrlContent } from "@/lib/parsers/url";
 import { getUserFromRequest } from "@/lib/auth";
 
+const FILE_PROCESSING_BATCH_SIZE = Math.max(1, Math.min(Number(process.env.FILE_PROCESSING_BATCH_SIZE || 3), 10));
+
 type ProcessingFile = {
   id: string;
   original_file_name: string;
@@ -120,7 +122,8 @@ export async function POST(
       .from("file_processing_queue")
       .select("*")
       .eq("session_id", sessionId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .limit(FILE_PROCESSING_BATCH_SIZE);
 
     if (filesError || !files || files.length === 0) {
       return NextResponse.json({ message: "没有待处理的文件", processedCount: 0 });
@@ -208,6 +211,17 @@ export async function POST(
       }
     }
 
+    const { count: completedCount } = await client
+      .from("file_processing_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", sessionId)
+      .eq("status", "completed");
+
+    await client
+      .from("upload_sessions")
+      .update({ processed_files: completedCount || processedCount, updated_at: new Date().toISOString() })
+      .eq("id", sessionId);
+
     await client.from("processing_history").insert({
       session_id: sessionId,
       action: "extract",
@@ -226,7 +240,7 @@ export async function POST(
     if (!remaining || remaining.length === 0) {
       await client
         .from("upload_sessions")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .update({ status: "processing", updated_at: new Date().toISOString() })
         .eq("id", sessionId);
     }
 

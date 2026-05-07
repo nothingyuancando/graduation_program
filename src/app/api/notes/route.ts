@@ -3,6 +3,7 @@ import { getApiClient } from "@/storage/database/supabase-client";
 import { insertNoteSchema } from "@/storage/database/shared/schema";
 import { getUserFromRequest } from "@/lib/auth";
 import { classifyAndUpdateNote } from "@/lib/services/subject-classification";
+import { buildLocalLearningMetadata } from "@/lib/services/import-note";
 import { z } from "zod";
 
 // GET /api/notes - 获取当前用户的笔记列表
@@ -64,6 +65,11 @@ export async function POST(request: NextRequest) {
     const validatedData = insertNoteSchema.parse(body);
 
     const client = getApiClient();
+    const learningMetadata = buildLocalLearningMetadata({
+      title: validatedData.title,
+      content: validatedData.content,
+      subject: validatedData.subject,
+    });
 
     const { data, error } = await client
       .from("notes")
@@ -72,6 +78,10 @@ export async function POST(request: NextRequest) {
         title: validatedData.title,
         content: validatedData.content,
         content_type: validatedData.contentType,
+        summary: learningMetadata.summary,
+        tags: learningMetadata.tags,
+        key_points: learningMetadata.keyPoints,
+        mind_map: learningMetadata.mindMap,
         subject: validatedData.subject,
         subject_confidence: validatedData.subject ? 1 : 0,
         subject_reason: validatedData.subject ? "用户创建笔记时指定科目。" : null,

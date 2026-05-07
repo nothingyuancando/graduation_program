@@ -4,6 +4,7 @@ import { getStorageConfig } from "@/lib/env-utils";
 import { createLLMClient } from "@/lib/llm-provider";
 import { createS3Client } from "@/lib/storage/s3";
 import { getUserFromRequest } from "@/lib/auth";
+import { generateImportedLearningNote } from "@/lib/services/import-note";
 
 type LLMImageMessage = {
   role: "user";
@@ -67,17 +68,29 @@ export async function POST(request: NextRequest) {
       { temperature: 0.7 }
     );
 
+    const noteTitle = title || file.name;
+    const importedNote = await generateImportedLearningNote({
+      title: noteTitle,
+      sourceText: response.content,
+      sourceLabel: file.name,
+      userId: user.id,
+    });
+
     const client = getApiClient();
     const { data, error } = await client
       .from("notes")
       .insert({
         user_id: user.id,
-        title: title || file.name,
-        content: response.content,
-        content_type: "text",
+        title: noteTitle,
+        content: importedNote.content,
+        content_type: "markdown",
+        summary: importedNote.summary,
+        tags: importedNote.tags,
+        key_points: importedNote.keyPoints,
+        mind_map: importedNote.mindMap,
         source_type: "image",
         source_url: fileKey,
-        status: "draft",
+        status: "processed",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

@@ -25,6 +25,14 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error generating quiz:", error);
-    return NextResponse.json({ error: "生成练习题失败" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "未知错误";
+    const isDatabaseError = /relation|column|violates|duplicate|database|schema/i.test(message);
+    return NextResponse.json(
+      {
+        error: isDatabaseError ? "测验保存失败，请检查数据库表结构" : "生成练习题失败",
+        detail: process.env.NODE_ENV === "development" ? message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }

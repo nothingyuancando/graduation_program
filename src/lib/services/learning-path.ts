@@ -189,7 +189,6 @@ export async function generateLearningPath(
   const rankedNotes = rankNotes(notes, goal, weakPoints);
   const fallback = fallbackPlan(goal, normalizedDays, notes, weakPoints);
 
-  const llmClient = createLLMClient({ userId });
   const prompt = `你是 LearningPathAgent，根据用户技能画像、薄弱点、已有笔记和目标生成渐进式学习路径。
 
 用户目标：${goal}
@@ -248,21 +247,31 @@ ${JSON.stringify(
 4. 尽量引用已有笔记 ID，方便用户点击复习。
 5. 不要编造不存在的笔记 ID。`;
 
-  const response = await llmClient.invoke(
-    [
-      {
-        role: "system",
-        content: "你是个性化学习路径规划 Agent，擅长基于技能画像和知识图谱制定可执行计划。输出必须是有效 JSON。",
-      },
-      { role: "user", content: prompt },
-    ],
-    { temperature: 0.35, maxTokens: 6000 }
-  );
+  let plan = fallback;
+  let usedFallback = false;
 
-  const plan = parseJsonObject<LearningPlan>(response.content, fallback);
+  try {
+    const llmClient = createLLMClient({ userId });
+    const response = await llmClient.invoke(
+      [
+        {
+          role: "system",
+          content: "你是个性化学习路径规划 Agent，擅长基于技能画像和知识图谱制定可执行计划。输出必须是有效 JSON。",
+        },
+        { role: "user", content: prompt },
+      ],
+      { temperature: 0.35, maxTokens: 6000 }
+    );
+
+    plan = parseJsonObject<LearningPlan>(response.content, fallback);
+  } catch (error) {
+    usedFallback = true;
+    console.error("Learning path LLM generation failed, using fallback plan:", error);
+  }
 
   if (!Array.isArray(plan.days) || plan.days.length !== normalizedDays) {
-    return fallback;
+    plan = fallback;
+    usedFallback = true;
   }
 
   try {
@@ -273,7 +282,7 @@ ${JSON.stringify(
       input: { goal, days: normalizedDays },
       output: plan,
       status: "completed",
-      confidence: "0.85",
+      confidence: usedFallback ? "0.55" : "0.85",
       created_at: new Date().toISOString(),
     });
   } catch (error) {

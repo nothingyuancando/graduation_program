@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     const { data: recentCheckins } = await client
       .from("study_checkins")
-      .select("*")
+      .select("date, study_minutes, notes_created, notes_reviewed, quizzes_taken")
       .eq("user_id", user.id)
       .gte("date", startDate90)
       .lte("date", today)

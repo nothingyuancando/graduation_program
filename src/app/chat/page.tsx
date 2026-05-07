@@ -36,7 +36,7 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, activeTool]);
 
   async function sendMessage() {
@@ -121,8 +121,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-br from-slate-50 via-white to-sky-50">
-      <header className="border-b bg-white/80 backdrop-blur">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-sky-50">
+      <header className="shrink-0 border-b bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/">
@@ -139,7 +139,7 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-6">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6">
         <div className="mx-auto max-w-5xl space-y-4">
           {messages.length === 0 && (
             <section className="rounded-3xl border bg-white p-8 shadow-sm">
@@ -216,7 +216,7 @@ export default function ChatPage() {
         </div>
       </main>
 
-      <footer className="border-t bg-white/80 px-4 py-3 backdrop-blur">
+      <footer className="shrink-0 border-t bg-white/80 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-5xl gap-2">
           <Input
             ref={inputRef}

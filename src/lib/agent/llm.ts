@@ -9,7 +9,6 @@ import {
   PROVIDER_CONFIGS,
   getConfiguredProviders,
 } from "@/lib/llm-provider";
-import { getApiClient } from "@/storage/database/supabase-client";
 
 export async function getChatModel(options?: {
   provider?: LLMProvider;
@@ -31,41 +30,23 @@ export async function getChatModel(options?: {
     provider = configured.length > 0 ? configured[0] : "openai";
   }
 
-  let config = PROVIDER_CONFIGS[provider];
-  let model =
+  const config = PROVIDER_CONFIGS[provider];
+  const model =
     options?.model || process.env.LLM_MODEL || config.defaultModel;
 
-  let apiKey =
+  const apiKey =
     process.env[config.envKey] || process.env.LLM_API_KEY || "";
 
-  let baseURL =
+  const baseURL =
     process.env[`${provider.toUpperCase()}_BASE_URL`] ||
     process.env.LLM_BASE_URL ||
     config.baseURL;
-
-  if (options?.userId) {
-    const client = getApiClient();
-    const { data } = await client
-      .from("user_llm_configs")
-      .select("provider, model, base_url, api_key, enabled")
-      .eq("user_id", options.userId)
-      .eq("enabled", true)
-      .single();
-
-    if (data?.api_key) {
-      provider = data.provider as LLMProvider;
-      config = PROVIDER_CONFIGS[provider] || PROVIDER_CONFIGS.custom;
-      model = data.model || model;
-      apiKey = data.api_key;
-      baseURL = data.base_url || config.baseURL;
-    }
-  }
 
   return new ChatOpenAI({
     model,
     temperature: options?.temperature ?? 0.3,
     streaming: options?.streaming ?? true,
-    openAIApiKey: apiKey,
+    apiKey,
     configuration: { baseURL },
   });
 }

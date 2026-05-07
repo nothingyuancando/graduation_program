@@ -1,30 +1,38 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Bold,
   BookOpen,
   CheckSquare,
-  Code,
   ClipboardCheck,
+  Code,
+  Columns2,
   Eye,
   FileText,
   FlaskConical,
   GraduationCap,
+  Heading2,
+  Italic,
+  List,
+  ListChecks,
   Loader2,
+  PanelRightOpen,
+  Quote,
   Save,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 type TemplateId = "blank" | "course" | "paper" | "exam" | "mistake";
+type ViewMode = "split" | "preview" | "source";
 
 type NoteTemplate = {
   id: TemplateId;
@@ -44,20 +52,9 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#039;");
 }
 
-function extractConcepts(value: string) {
-  const concepts = new Set<string>();
-  const matches = value.matchAll(/\[\[([^\]\n]+)\]\]/g);
-
-  for (const match of matches) {
-    const concept = match[1]?.trim();
-    if (concept) concepts.add(concept);
-  }
-
-  return [...concepts];
-}
-
 function renderInlineMarkdown(value: string) {
   return escapeHtml(value)
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" class="font-semibold text-cyan-700 underline underline-offset-4" target="_blank" rel="noreferrer">$1</a>')
     .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1.5 py-0.5 text-[0.9em] text-slate-800">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
@@ -115,25 +112,14 @@ function renderMarkdownPreview(value: string) {
     const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
     if (heading) {
       closeList();
-      const level = heading[1].length;
-      const text = renderInlineMarkdown(heading[2]);
+      const level = Math.min(heading[1].length, 3);
       const className =
         level === 1
-          ? "mt-1 mb-4 border-b border-slate-200 pb-3 text-2xl font-black"
+          ? "mt-1 mb-4 border-b border-slate-200 pb-3 text-3xl font-black"
           : level === 2
-            ? "mt-6 mb-3 text-lg font-black"
+            ? "mt-7 mb-3 text-xl font-black"
             : "mt-5 mb-2 text-base font-bold";
-      html.push(`<h${Math.min(level, 3)} class="${className}">${text}</h${Math.min(level, 3)}>`);
-      continue;
-    }
-
-    if (/^\|(.+)\|$/.test(trimmed)) {
-      closeList();
-      html.push(`<div class="my-2 overflow-x-auto rounded-lg border border-slate-200"><table class="w-full text-sm"><tbody><tr>${trimmed
-        .split("|")
-        .filter(Boolean)
-        .map((cell) => `<td class="border-b border-slate-100 px-3 py-2">${renderInlineMarkdown(cell.trim())}</td>`)
-        .join("")}</tr></tbody></table></div>`);
+      html.push(`<h${level} class="${className}">${renderInlineMarkdown(heading[2])}</h${level}>`);
       continue;
     }
 
@@ -161,7 +147,17 @@ function renderMarkdownPreview(value: string) {
 
     if (trimmed.startsWith("> ")) {
       closeList();
-      html.push(`<blockquote class="my-3 border-l-4 border-amber-400 bg-amber-50 px-4 py-2 text-sm text-slate-700">${renderInlineMarkdown(trimmed.slice(2))}</blockquote>`);
+      html.push(`<blockquote class="my-3 border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm leading-7 text-slate-700">${renderInlineMarkdown(trimmed.slice(2))}</blockquote>`);
+      continue;
+    }
+
+    if (/^\|(.+)\|$/.test(trimmed)) {
+      closeList();
+      html.push(`<div class="my-2 overflow-x-auto rounded-lg border border-slate-200"><table class="w-full text-sm"><tbody><tr>${trimmed
+        .split("|")
+        .filter(Boolean)
+        .map((cell) => `<td class="border-b border-slate-100 px-3 py-2">${renderInlineMarkdown(cell.trim())}</td>`)
+        .join("")}</tr></tbody></table></div>`);
       continue;
     }
 
@@ -177,71 +173,32 @@ function renderMarkdownPreview(value: string) {
   return html.join("\n");
 }
 
-function PreviewPane({ title, subject, content }: { title: string; subject: string; content: string }) {
-  const concepts = extractConcepts(content);
+function extractConcepts(value: string) {
+  const concepts = new Set<string>();
+  for (const match of value.matchAll(/\[\[([^\]\n]+)\]\]/g)) {
+    const concept = match[1]?.trim();
+    if (concept) concepts.add(concept);
+  }
+  return [...concepts];
+}
+
+function PreviewDocument({ title, subject, content }: { title: string; subject: string; content: string }) {
   const previewHtml = renderMarkdownPreview(content);
 
   return (
-    <aside className="sticky top-28 h-[calc(100vh-8rem)] space-y-4 overflow-y-auto">
-      <section className="rounded-2xl border border-slate-950/10 bg-white/85 shadow-xl shadow-slate-950/5">
-        <div className="flex items-center justify-between border-b border-slate-950/10 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <Eye className="h-4 w-4 text-cyan-700" />
-            <h2 className="font-black">实时预览</h2>
-          </div>
-          <Badge className="bg-cyan-50 text-cyan-700 hover:bg-cyan-50">Obsidian 风格</Badge>
+    <div className="min-h-[620px] bg-[#fffdf8] px-6 py-6 md:px-9 md:py-8">
+      <div className="mb-6 border-b border-slate-200 pb-5">
+        <p className="text-xs font-semibold text-slate-400">{subject || "未设置学科"}</p>
+        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">{title || "未命名学习笔记"}</h2>
+      </div>
+      {content.trim() ? (
+        <div className="preview-body text-slate-800" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+      ) : (
+        <div className="flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-slate-300 text-center text-sm text-slate-500">
+          在左侧输入内容，这里会像 Typora 一样实时渲染。
         </div>
-        <div className="px-5 py-5">
-          <div className="mb-5 rounded-xl border border-slate-950/10 bg-[#fbf7ee] p-4">
-            <p className="text-xs font-semibold uppercase text-slate-400">当前笔记</p>
-            <h3 className="mt-2 line-clamp-2 text-xl font-black">{title || "未命名学习笔记"}</h3>
-            <p className="mt-1 text-sm text-slate-500">{subject || "未设置学科"}</p>
-          </div>
-
-          {content.trim() ? (
-            <div
-              className="preview-body text-slate-800"
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              开始输入 Markdown 后，这里会实时显示渲染效果。
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-950/10 bg-white/80 p-5">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-600" />
-          <h2 className="font-black">概念连接</h2>
-        </div>
-        {concepts.length ? (
-          <>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {concepts.map((concept) => (
-                <Link key={concept} href={`/concepts/${encodeURIComponent(concept)}`}>
-                  <Badge className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">[[{concept}]]</Badge>
-                </Link>
-              ))}
-            </div>
-            <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white/80">
-                <CheckSquare className="h-4 w-4" />
-                保存后会进入双链索引
-              </div>
-              <p className="mt-2 text-xs leading-5 text-white/55">
-                这些概念会在概念页形成反向链接，方便从一个知识点跳回相关笔记。
-              </p>
-            </div>
-          </>
-        ) : (
-          <p className="mt-3 text-sm leading-6 text-slate-500">
-            在正文中输入 <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">[[概念名]]</span>，这里会实时出现概念节点。
-          </p>
-        )}
-      </section>
-    </aside>
+      )}
+    </div>
   );
 }
 
@@ -249,7 +206,7 @@ const templates: NoteTemplate[] = [
   {
     id: "blank",
     title: "空白笔记",
-    description: "自由记录，适合临时想法和快速整理。",
+    description: "自由记录，适合快速整理想法。",
     icon: FileText,
     titlePlaceholder: "输入笔记标题",
     content: "",
@@ -257,7 +214,7 @@ const templates: NoteTemplate[] = [
   {
     id: "course",
     title: "课程笔记",
-    description: "按知识点、例题和课后问题组织课堂内容。",
+    description: "按目标、概念、例题和复习任务组织。",
     icon: BookOpen,
     titlePlaceholder: "课程名 / 章节名",
     content: `# 课程主题
@@ -286,7 +243,7 @@ const templates: NoteTemplate[] = [
   {
     id: "paper",
     title: "论文阅读",
-    description: "整理研究问题、方法、实验结论和可复用观点。",
+    description: "整理问题、方法、证据和可复用观点。",
     icon: FlaskConical,
     titlePlaceholder: "论文标题",
     content: `# 论文阅读
@@ -306,11 +263,6 @@ const templates: NoteTemplate[] = [
 1. 
 2. 
 
-## 实验与证据
-- 数据集：
-- 指标：
-- 主要结果：
-
 ## 局限与启发
 - 局限：
 - 可以借鉴到我的项目：
@@ -319,7 +271,7 @@ const templates: NoteTemplate[] = [
   {
     id: "exam",
     title: "考试复习",
-    description: "面向考试，把考点、掌握度和复习计划放在一起。",
+    description: "把考点、掌握度和复习计划放在一起。",
     icon: GraduationCap,
     titlePlaceholder: "科目 / 考试范围",
     content: `# 考试复习
@@ -336,9 +288,6 @@ const templates: NoteTemplate[] = [
 | --- | --- | --- |
 |  | 低/中/高 |  |
 
-## 典型题型
-1. 
-
 ## 今日复习任务
 - [ ] 
 - [ ] 
@@ -347,7 +296,7 @@ const templates: NoteTemplate[] = [
   {
     id: "mistake",
     title: "错题整理",
-    description: "记录错误原因、正确思路和相似题触发条件。",
+    description: "记录错因、正确思路和防错策略。",
     icon: ClipboardCheck,
     titlePlaceholder: "错题主题 / 题型",
     content: `# 错题整理
@@ -366,43 +315,73 @@ const templates: NoteTemplate[] = [
 ## 避免再错
 - 看到什么特征要警惕：
 - 下次解题步骤：
-
-## 相似题
-- 
 `,
   },
 ];
 
+const toolbarItems = [
+  { label: "二级标题", icon: Heading2, before: "\n## ", after: "" },
+  { label: "粗体", icon: Bold, before: "**", after: "**" },
+  { label: "斜体", icon: Italic, before: "*", after: "*" },
+  { label: "列表", icon: List, before: "\n- ", after: "" },
+  { label: "任务", icon: ListChecks, before: "\n- [ ] ", after: "" },
+  { label: "引用", icon: Quote, before: "\n> ", after: "" },
+  { label: "代码", icon: Code, before: "\n```\n", after: "\n```" },
+];
+
 export default function NewNotePage() {
   const router = useRouter();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>("course");
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState(templates.find((item) => item.id === "course")?.content || "");
   const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const currentTemplate = useMemo(
     () => templates.find((item) => item.id === selectedTemplate) || templates[0],
     [selectedTemplate]
   );
+  const concepts = useMemo(() => extractConcepts(content), [content]);
 
   const applyTemplate = (template: NoteTemplate) => {
     setSelectedTemplate(template.id);
-    if (!content.trim() || confirm("应用模板会替换当前正文，是否继续？")) {
+    if (!content.trim() || window.confirm("应用模板会替换当前正文，是否继续？")) {
       setContent(template.content);
     }
   };
 
+  const insertMarkdown = (before: string, after: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setContent((value) => `${value}${before}${after}`);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = content.slice(start, end);
+    const next = `${content.slice(0, start)}${before}${selected || ""}${after}${content.slice(end)}`;
+    setContent(next);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = selected ? start + before.length + selected.length + after.length : start + before.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
 
     try {
       const response = await fetch("/api/notes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           content,
@@ -414,37 +393,51 @@ export default function NewNotePage() {
       });
 
       const data = await response.json();
-      if (data.note) {
-        router.push(`/notes/${data.note.id}`);
+      if (!response.ok) {
+        setError(data.error || "保存失败，请稍后重试");
+        return;
       }
-    } catch (error) {
-      console.error("Error creating note:", error);
+
+      if (data.note) router.push(`/notes/${data.note.id}`);
+    } catch (saveError) {
+      console.error("Error creating note:", saveError);
+      setError("保存失败，请检查网络或登录状态");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f4efe4] text-slate-950">
-      <header className="sticky top-0 z-40 border-b border-slate-950/10 bg-[#f8f1e6]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-5 md:px-8">
-          <Button variant="ghost" size="icon" className="rounded-full" asChild>
-            <Link href="/notes">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-black tracking-tight">新建学习笔记</h1>
-              <Badge className="bg-white/70 text-slate-700 hover:bg-white/70">模板化输入</Badge>
+    <div className="min-h-screen bg-[#f5f1e8] text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-950/10 bg-[#fbf7ee]/92 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-5 py-4 md:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button variant="ghost" size="icon" className="rounded-full" asChild>
+              <Link href="/notes">
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+            </Button>
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-black tracking-tight">写学习笔记</h1>
+              <p className="mt-1 text-sm text-slate-600">边写边看，写完直接进入复述、测验和复习。</p>
             </div>
-            <p className="mt-1 text-sm text-slate-600">用 Notion 式模板固定结构，再用 [[概念]] 建立双链。</p>
           </div>
+          <Button form="note-form" type="submit" disabled={loading} className="bg-slate-950 text-white hover:bg-slate-800">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {loading ? "保存中" : "保存笔记"}
+          </Button>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1500px] gap-6 px-5 py-8 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_380px] md:px-8">
-        <aside className="space-y-3 lg:sticky lg:top-28 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
+      <main className="mx-auto grid max-w-[1500px] gap-5 px-5 py-6 md:px-8 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="space-y-3 xl:sticky xl:top-24 xl:h-[calc(100vh-7rem)] xl:overflow-y-auto">
+          <div className="rounded-lg border border-slate-950/10 bg-white/75 p-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-600" />
+              <h2 className="font-black">笔记模板</h2>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">模板只负责起步，真正的重点是把概念写清楚、后面能验证。</p>
+          </div>
           {templates.map((template) => {
             const Icon = template.icon;
             const active = selectedTemplate === template.id;
@@ -453,10 +446,10 @@ export default function NewNotePage() {
                 key={template.id}
                 type="button"
                 onClick={() => applyTemplate(template)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${
+                className={`w-full rounded-lg border p-4 text-left transition ${
                   active
                     ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/15"
-                    : "border-slate-950/10 bg-white/75 hover:bg-white"
+                    : "border-slate-950/10 bg-white/80 hover:bg-white"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -471,86 +464,112 @@ export default function NewNotePage() {
           })}
         </aside>
 
-        <Card className="border-slate-950/10 bg-white/78 shadow-xl shadow-slate-950/5">
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <form id="note-form" onSubmit={handleSubmit} className="min-w-0 space-y-4">
+          <section className="rounded-lg border border-slate-950/10 bg-white/82 shadow-xl shadow-slate-950/5">
+            <div className="grid gap-4 border-b border-slate-950/10 p-4 md:grid-cols-[minmax(0,1fr)_240px]">
               <div>
-                <CardTitle>创建笔记</CardTitle>
-                <CardDescription className="mt-2">
-                  当前模板：{currentTemplate.title}。正文支持 Markdown，也支持 Obsidian 风格的 [[概念]] 双链。
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="bg-white">
-                <Code className="mr-1.5 h-3.5 w-3.5" />
-                Markdown
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                <div>
-                  <Label htmlFor="title">标题</Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder={currentTemplate.titlePlaceholder}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="subject">学科</Label>
-                  <Input
-                    id="subject"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="如：机器学习"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <Label htmlFor="content">内容</Label>
-                  <span className="text-xs text-slate-500">{content.length} 字符</span>
-                </div>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="输入笔记内容，使用 [[概念名]] 建立双链..."
-                  rows={24}
-                  className="min-h-[680px] resize-y rounded-2xl border-slate-950/10 bg-white/90 font-mono text-sm leading-6 shadow-inner"
+                <Label htmlFor="title">标题</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={currentTemplate.titlePlaceholder}
+                  className="mt-2 h-11 border-slate-950/10 bg-white"
                   required
                 />
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button type="submit" disabled={loading} className="bg-slate-950 text-white hover:bg-slate-800">
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      创建中...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      保存笔记
-                    </>
-                  )}
-                </Button>
-                <Button type="button" variant="outline" asChild>
-                  <Link href="/notes">取消</Link>
-                </Button>
+              <div>
+                <Label htmlFor="subject">学科</Label>
+                <Input
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="如：机器学习"
+                  className="mt-2 h-11 border-slate-950/10 bg-white"
+                />
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
 
-        <div className="lg:col-start-2 xl:col-start-3 xl:row-start-1">
-          <PreviewPane title={title} subject={subject} content={content} />
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-950/10 bg-[#fffaf0] px-4 py-3">
+              <div className="flex flex-wrap items-center gap-1">
+                {toolbarItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Button
+                      key={item.label}
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      title={item.label}
+                      className="h-8 w-8 rounded-md"
+                      onClick={() => insertMarkdown(item.before, item.after)}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="hidden text-xs text-slate-500 md:block">
+                  {content.length} 字符 · {concepts.length} 个概念
+                </div>
+                <div className="flex rounded-md border border-slate-950/10 bg-white p-1">
+                  <Button type="button" size="sm" variant={viewMode === "split" ? "default" : "ghost"} onClick={() => setViewMode("split")}>
+                    <Columns2 className="mr-1.5 h-4 w-4" />
+                    双栏
+                  </Button>
+                  <Button type="button" size="sm" variant={viewMode === "preview" ? "default" : "ghost"} onClick={() => setViewMode("preview")}>
+                    <Eye className="mr-1.5 h-4 w-4" />
+                    预览
+                  </Button>
+                  <Button type="button" size="sm" variant={viewMode === "source" ? "default" : "ghost"} onClick={() => setViewMode("source")}>
+                    <PanelRightOpen className="mr-1.5 h-4 w-4" />
+                    源码
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className={viewMode === "split" ? "grid lg:grid-cols-2" : ""}>
+              {viewMode !== "preview" && (
+                <div className="min-w-0 border-slate-950/10 lg:border-r">
+                  <Textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="输入笔记内容，使用 [[概念名]] 建立双链..."
+                    rows={24}
+                    className="min-h-[620px] resize-y rounded-none border-0 bg-white/92 p-6 font-mono text-sm leading-7 shadow-none focus-visible:ring-0"
+                    required
+                  />
+                </div>
+              )}
+
+              {viewMode !== "source" && (
+                <PreviewDocument title={title} subject={subject} content={content} />
+              )}
+            </div>
+          </section>
+
+          {concepts.length > 0 && (
+            <section className="rounded-lg border border-cyan-200 bg-cyan-50/70 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-cyan-700" />
+                <span className="text-sm font-bold text-cyan-950">已识别概念</span>
+                {concepts.map((concept) => (
+                  <Badge key={concept} className="bg-white text-cyan-700 hover:bg-white">
+                    [[{concept}]]
+                  </Badge>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          )}
+        </form>
       </main>
     </div>
   );

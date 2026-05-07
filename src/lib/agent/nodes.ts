@@ -21,6 +21,8 @@ export async function routerNode(
     queryType = "analysis";
   } else if (/薄弱|学习画像|学习情况|profile|掌握|复习建议/i.test(content)) {
     queryType = "profile";
+  } else if (/安装|启用|下载|插件|能力|会什么|能做什么|word|docx|anki|marketplace/i.test(content)) {
+    queryType = "skill_marketplace";
   } else if (/技能|技能画像|偏好|学习风格|学习目标|skill/i.test(content)) {
     queryType = "skills";
   } else if (/科目|学科|课程|分类|归类|未分类|按科目|subject|classify/i.test(content)) {

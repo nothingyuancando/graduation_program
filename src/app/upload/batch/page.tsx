@@ -1,63 +1,29 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  ArrowLeft,
+  FileText,
+  Globe,
+  Loader2,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  LucideIcon,
-  ArrowLeft,
-  Upload,
-  FileText,
-  Image,
-  Presentation,
-  Table,
-  Music,
-  Video,
-  Archive,
-  Link as LinkIcon,
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-  X,
-  Play,
-} from "lucide-react";
 
-interface FileItem {
+type FileItem = {
   file: File;
   category: string;
-  status: "pending" | "uploading" | "uploaded" | "error";
-  progress: number;
-  error?: string;
-}
-
-const categoryIcons: Record<string, LucideIcon> = {
-  text: FileText,
-  image: Image,
-  presentation: Presentation,
-  spreadsheet: Table,
-  audio: Music,
-  video: Video,
-  archive: Archive,
-  other: FileText,
 };
 
-const categoryColors: Record<string, string> = {
-  text: "text-blue-500",
-  image: "text-green-500",
-  presentation: "text-orange-500",
-  spreadsheet: "text-emerald-500",
-  audio: "text-purple-500",
-  video: "text-pink-500",
-  archive: "text-gray-500",
-  other: "text-gray-500",
-};
-
-// 文件分类器
 function classifyFile(mimeType: string, fileName: string): string {
   const lowerName = fileName.toLowerCase();
   if (
@@ -65,37 +31,23 @@ function classifyFile(mimeType: string, fileName: string): string {
     mimeType.includes("word") ||
     mimeType === "text/plain" ||
     mimeType === "text/markdown" ||
-    mimeType === "text/html" ||
     lowerName.endsWith(".doc") ||
     lowerName.endsWith(".docx") ||
     lowerName.endsWith(".txt") ||
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".html")
+    lowerName.endsWith(".md")
   ) {
-    return "text";
+    return "文档";
   }
-  if (mimeType.startsWith("image/")) return "image";
-  if (
-    mimeType.includes("presentation") ||
-    mimeType.includes("powerpoint") ||
-    fileName.endsWith(".ppt") ||
-    fileName.endsWith(".pptx")
-  ) {
-    return "presentation";
-  }
-  if (
-    mimeType.includes("spreadsheet") ||
-    mimeType.includes("excel") ||
-    mimeType.includes("csv")
-  ) {
-    return "spreadsheet";
-  }
-  if (mimeType.startsWith("audio/")) return "audio";
-  if (mimeType.startsWith("video/")) return "video";
-  if (mimeType.includes("zip") || mimeType.includes("rar") || mimeType.includes("compressed")) {
-    return "archive";
-  }
-  return "other";
+  if (mimeType.startsWith("image/")) return "图片";
+  if (mimeType.includes("presentation") || lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) return "演示文稿";
+  if (mimeType.includes("spreadsheet") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv")) return "表格";
+  return "其他";
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function BatchUploadPage() {
@@ -105,292 +57,212 @@ export default function BatchUploadPage() {
   const [urlInput, setUrlInput] = useState("");
   const [title, setTitle] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState(0); // 1=上传 2=提取 3=生成
-  const [stepError, setStepError] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [progress, setProgress] = useState(0);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    const newFiles: FileItem[] = selectedFiles.map((file) => ({
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    const nextFiles = selectedFiles.map((file) => ({
       file,
       category: classifyFile(file.type, file.name),
-      status: "pending",
-      progress: 0,
     }));
-    setFiles((prev) => [...prev, ...newFiles]);
+    setFiles((current) => [...current, ...nextFiles]);
+    event.target.value = "";
   }, []);
 
-  const handleRemoveFile = useCallback((index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeFile = useCallback((index: number) => {
+    setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }, []);
 
-  const handleAddUrl = useCallback(() => {
-    if (urlInput.trim() && !urls.includes(urlInput.trim())) {
-      setUrls((prev) => [...prev, urlInput.trim()]);
-      setUrlInput("");
-    }
+  const addUrl = useCallback(() => {
+    const value = urlInput.trim();
+    if (!value || urls.includes(value)) return;
+    setUrls((current) => [...current, value]);
+    setUrlInput("");
   }, [urlInput, urls]);
 
-  const handleRemoveUrl = useCallback((index: number) => {
-    setUrls((prev) => prev.filter((_, i) => i !== index));
+  const removeUrl = useCallback((index: number) => {
+    setUrls((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }, []);
 
+  const totalSize = useMemo(() => files.reduce((sum, item) => sum + item.file.size, 0), [files]);
+  const totalItems = files.length + urls.length;
+  const groupedStats = useMemo(() => {
+    return files.reduce<Record<string, number>>((stats, item) => {
+      stats[item.category] = (stats[item.category] || 0) + 1;
+      return stats;
+    }, {});
+  }, [files]);
+
   const handleUpload = async () => {
-    if (files.length === 0 && urls.length === 0) return;
+    if (totalItems === 0 || uploading) return;
 
     setUploading(true);
-    setUploadProgress(0);
-    setCurrentStep(1);
-    setStepError(null);
+    setError("");
+    setProgress(25);
 
     try {
       const formData = new FormData();
-      formData.append("title", title || "未整理笔记");
+      formData.append("title", title.trim() || "资料导入");
       formData.append("urls", urls.join(","));
-      for (const fileItem of files) {
-        formData.append("files", fileItem.file);
-      }
+      files.forEach((item) => formData.append("files", item.file));
 
-      // 步骤 1：上传文件
-      const uploadResponse = await fetch("/api/upload/batch", {
+      setProgress(55);
+      const response = await fetch("/api/upload/batch", {
         method: "POST",
         body: formData,
       });
 
-      if (!uploadResponse.ok) {
-        const err = await uploadResponse.json();
-        throw new Error(err.detail || err.error || "上传失败");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || data.error || "导入失败，请稍后重试。");
+      }
+      if (!data.session?.id) {
+        throw new Error("没有获取到处理会话，请重新导入。");
       }
 
-      const uploadData = await uploadResponse.json();
-      if (!uploadData.session) throw new Error("未获取到上传会话");
-
-      setUploadProgress(33);
-      setCurrentStep(2);
-
-      // 步骤 2：提取文本
-      const processResponse = await fetch(
-        `/api/upload/sessions/${uploadData.session.id}/process`,
-        { method: "POST" }
-      );
-
-      if (!processResponse.ok) {
-        const err = await processResponse.json();
-        throw new Error(err.error || "文本提取失败");
-      }
-
-      setUploadProgress(66);
-      setCurrentStep(3);
-
-      // 步骤 3：AI 生成笔记
-      const consolidateResponse = await fetch(
-        `/api/upload/sessions/${uploadData.session.id}/consolidate`,
-        { method: "POST" }
-      );
-
-      if (!consolidateResponse.ok) {
-        const err = await consolidateResponse.json();
-        throw new Error(err.error || "笔记生成失败");
-      }
-
-      const consolidateData = await consolidateResponse.json();
-      setUploadProgress(100);
-
-      if (consolidateData.note) {
-        router.push(`/notes/${consolidateData.note.id}`);
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "未知错误";
-      setStepError(msg);
-      console.error("Upload error:", error);
+      setProgress(100);
+      router.push(`/upload/sessions/${data.session.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导入失败，请稍后重试。");
+      setProgress(0);
     } finally {
       setUploading(false);
     }
   };
 
-  const fileStats = files.reduce(
-    (acc, f) => {
-      acc[f.category] = (acc[f.category] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const totalSize = files.reduce((sum, f) => sum + f.file.size, 0);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Header */}
-      <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                返回
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/upload">
+                <ArrowLeft className="h-5 w-5" />
               </Link>
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">批量上传</h1>
-              <p className="text-sm text-muted-foreground">
-                上传多个文件，AI自动整理和分析
-              </p>
+              <h1 className="text-xl font-black">高级资料导入</h1>
+              <p className="text-sm text-slate-500">一次导入多份材料，系统会在后台解析并生成学习笔记。</p>
             </div>
           </div>
+          <Button variant="outline" asChild>
+            <Link href="/upload">返回普通导入</Link>
+          </Button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Title */}
-          <Card>
+      <main className="mx-auto grid max-w-6xl gap-6 px-5 py-6 md:px-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="space-y-6">
+          <Card className="border-slate-200 bg-white shadow-sm">
             <CardHeader>
-              <CardTitle>笔记标题</CardTitle>
-              <CardDescription>为这批内容指定一个标题（可选）</CardDescription>
+              <CardTitle>这批资料叫什么？</CardTitle>
+              <CardDescription>标题会作为后续生成笔记的默认主题。</CardDescription>
             </CardHeader>
             <CardContent>
               <Input
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="留空将自动生成标题"
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="例如：数据库事务复习材料"
               />
             </CardContent>
           </Card>
 
-          {/* File Upload */}
-          <Card>
+          <Card className="border-slate-200 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                上传文件
+                <Upload className="h-5 w-5 text-cyan-700" />
+                选择文件
               </CardTitle>
               <CardDescription>
-                支持PDF、Word、Excel、PPT、图片、音视频等多种格式
+                建议一次导入 3-8 个核心材料。资料越多，解析和 AI 生成时间越长。
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+            <CardContent className="space-y-5">
+              <label
+                htmlFor="file-upload"
+                className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-cyan-400 hover:bg-cyan-50/40"
+              >
+                <Upload className="mb-3 h-10 w-10 text-slate-400" />
+                <p className="font-bold">点击选择文件</p>
+                <p className="mt-2 text-sm text-slate-500">支持 PDF、Word、TXT、Markdown、图片、表格和 PPT</p>
                 <input
+                  id="file-upload"
                   type="file"
                   multiple
                   onChange={handleFileSelect}
                   className="hidden"
-                  id="file-upload"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.png,.jpg,.jpeg,.gif,.mp3,.mp4,.zip,.rar"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.png,.jpg,.jpeg,.gif"
                 />
-                <label
-                  htmlFor="file-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2"
-                >
-                  <Upload className="h-12 w-12 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    点击或拖拽文件到此处
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    支持 PDF、Word、Excel、PPT、图片、音视频、压缩包
-                  </p>
-                </label>
-              </div>
+              </label>
 
-              {/* File List */}
               {files.length > 0 && (
-                <div className="mt-6 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">已选择 {files.length} 个文件</h3>
-                    <span className="text-sm text-muted-foreground">
-                      总大小: {(totalSize / 1024 / 1024).toFixed(2)} MB
-                    </span>
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-bold">已选择 {files.length} 个文件</p>
+                    <p className="text-sm text-slate-500">总大小 {formatFileSize(totalSize)}</p>
                   </div>
-
-                  {/* Category Stats */}
-                  <div className="flex gap-2 flex-wrap">
-                    {Object.entries(fileStats).map(([category, count]) => {
-                      const Icon = categoryIcons[category] || FileText;
-                      return (
-                        <Badge key={category} variant="outline">
-                          <Icon className={`h-3 w-3 mr-1 ${categoryColors[category]}`} />
-                          {category}: {count}
-                        </Badge>
-                      );
-                    })}
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(groupedStats).map(([category, count]) => (
+                      <Badge key={category} className="bg-slate-100 text-slate-700 hover:bg-slate-100">
+                        {category} {count}
+                      </Badge>
+                    ))}
                   </div>
-
-                  {/* File Items */}
-                  <div className="max-h-80 overflow-y-auto space-y-2">
-                    {files.map((fileItem, index) => {
-                      const Icon = categoryIcons[fileItem.category] || FileText;
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-3 border rounded-lg"
-                        >
-                          <Icon
-                            className={`h-5 w-5 ${
-                              categoryColors[fileItem.category] || "text-gray-500"
-                            }`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {fileItem.file.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {(fileItem.file.size / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveFile(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                  <div className="max-h-72 space-y-2 overflow-y-auto">
+                    {files.map((item, index) => (
+                      <div key={`${item.file.name}-${index}`} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                        <FileText className="h-5 w-5 shrink-0 text-slate-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{item.file.name}</p>
+                          <p className="text-xs text-slate-500">{item.category} · {formatFileSize(item.file.size)}</p>
                         </div>
-                      );
-                    })}
+                        <Button variant="ghost" size="icon" onClick={() => removeFile(index)} aria-label="移除文件">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* URL Input */}
-          <Card>
+          <Card className="border-slate-200 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <LinkIcon className="h-5 w-5" />
+                <Globe className="h-5 w-5 text-emerald-700" />
                 添加网页链接
               </CardTitle>
-              <CardDescription>粘贴网页URL，系统将自动抓取内容</CardDescription>
+              <CardDescription>网页会作为一份学习材料进入同一个处理流程。</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <Input
                   value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
+                  onChange={(event) => setUrlInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addUrl();
+                    }
+                  }}
                   placeholder="https://example.com/article"
-                  onKeyPress={(e) => e.key === "Enter" && handleAddUrl()}
                 />
-                <Button onClick={handleAddUrl}>添加</Button>
+                <Button type="button" variant="outline" onClick={addUrl}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  添加
+                </Button>
               </div>
 
               {urls.length > 0 && (
-                <div className="mt-4 space-y-2">
+                <div className="space-y-2">
                   {urls.map((url, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 p-3 border rounded-lg"
-                    >
-                      <LinkIcon className="h-5 w-5 text-blue-500" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{url}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveUrl(index)}
-                      >
-                        <X className="h-4 w-4" />
+                    <div key={url} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                      <Globe className="h-5 w-5 shrink-0 text-slate-500" />
+                      <p className="min-w-0 flex-1 truncate text-sm">{url}</p>
+                      <Button variant="ghost" size="icon" onClick={() => removeUrl(index)} aria-label="移除链接">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
@@ -399,106 +271,76 @@ export default function BatchUploadPage() {
             </CardContent>
           </Card>
 
-          {/* Upload Progress */}
-          {(uploading || stepError) && (
-            <Card>
-              <CardContent className="p-6 space-y-5">
-                {/* 步骤指示器 */}
-                {(() => {
-                  const steps = ["上传文件", "提取文本", "AI 生成笔记"];
-                  return (
-                    <div className="flex items-center justify-between">
-                      {steps.map((label, i) => {
-                        const step = i + 1;
-                        const done = !stepError && currentStep > step;
-                        const active = currentStep === step && uploading;
-                        const failed = !!stepError && currentStep === step;
-                        return (
-                          <div key={i} className="flex items-center flex-1">
-                            <div className="flex flex-col items-center gap-1">
-                              <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                                  done
-                                    ? "bg-green-500 text-white"
-                                    : active
-                                    ? "bg-blue-500 text-white ring-4 ring-blue-200"
-                                    : failed
-                                    ? "bg-red-500 text-white"
-                                    : "bg-gray-200 text-gray-500"
-                                }`}
-                              >
-                                {done ? (
-                                  <CheckCircle className="h-4 w-4" />
-                                ) : failed ? (
-                                  <AlertCircle className="h-4 w-4" />
-                                ) : active ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  step
-                                )}
-                              </div>
-                              <span className={`text-xs whitespace-nowrap ${active ? "text-blue-600 font-medium" : "text-muted-foreground"}`}>
-                                {label}
-                              </span>
-                            </div>
-                            {i < steps.length - 1 && (
-                              <div
-                                className={`flex-1 h-0.5 mx-2 mb-5 transition-all ${
-                                  currentStep > step && !stepError ? "bg-green-500" : "bg-gray-200"
-                                }`}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+          {error && (
+            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
 
-                {/* 总进度条 */}
-                {!stepError && (
-                  <Progress value={uploadProgress} className="h-2" />
-                )}
-
-                {/* 错误提示 */}
-                {stepError && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">第 {currentStep} 步失败</p>
-                      <p>{stepError}</p>
-                    </div>
-                  </div>
-                )}
+          {uploading && (
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardContent className="space-y-3 p-5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">正在创建处理任务</span>
+                  <span>{progress}%</span>
+                </div>
+                <Progress value={progress} />
+                <p className="text-sm text-slate-500">上传完成后会自动进入处理页，你可以在那里查看解析和 AI 生成进度。</p>
               </CardContent>
             </Card>
           )}
 
-          {/* Submit Button */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button
-              onClick={() => { setStepError(null); setCurrentStep(0); handleUpload(); }}
-              disabled={(files.length === 0 && urls.length === 0) || uploading}
+              onClick={handleUpload}
+              disabled={totalItems === 0 || uploading}
+              className="bg-slate-950 text-white hover:bg-slate-800"
               size="lg"
-              className="flex-1"
             >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  处理中...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  开始处理 ({files.length + urls.length} 项)
-                </>
-              )}
+              {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              导入 {totalItems} 项资料
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link href="/">取消</Link>
+              <Link href="/upload">取消</Link>
             </Button>
           </div>
-        </div>
+        </section>
+
+        <aside className="space-y-6">
+          <Card className="border-slate-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle>处理过程</CardTitle>
+              <CardDescription>用户体验上只展示三个清晰阶段。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                ["1", "上传资料", "保存文件和网页链接，创建处理会话。"],
+                ["2", "解析内容", "逐批提取文本，失败文件会单独标记。"],
+                ["3", "生成笔记", "AI 汇总材料，生成可继续复习的学习笔记。"],
+              ].map(([step, titleText, description]) => (
+                <div key={step} className="flex gap-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                    {step}
+                  </div>
+                  <div>
+                    <p className="font-bold">{titleText}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 bg-amber-50 shadow-sm">
+            <CardContent className="p-5">
+              <p className="font-black text-amber-900">建议</p>
+              <p className="mt-2 text-sm leading-6 text-amber-800">
+                答辩演示时优先使用文本粘贴或少量 PDF。高级导入适合作为补充能力展示，不作为主流程依赖。
+              </p>
+            </CardContent>
+          </Card>
+        </aside>
       </main>
     </div>
   );
