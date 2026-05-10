@@ -39,14 +39,6 @@ export async function GET(
       .eq("session_id", id)
       .order("created_at", { ascending: false });
 
-    const { data: latestGenerationJob } = await client
-      .from("generation_jobs")
-      .select("*")
-      .eq("session_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     // 计算统计信息
     const stats = {
       total: files?.length || 0,
@@ -69,7 +61,7 @@ export async function GET(
       session,
       files,
       history,
-      latestGenerationJob,
+      latestGenerationJob: null,
       stats,
     });
   } catch (error) {

@@ -9,7 +9,6 @@
     "dev:all:webpack": "powershell -ExecutionPolicy Bypass -File scripts/dev-all.ps1 -Webpack",
     "dev:all:clean": "powershell -ExecutionPolicy Bypass -File scripts/dev-all.ps1 -KillPort",
     "dev:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-dev.ps1",
-    "worker": "node --env-file=.env.local --experimental-strip-types scripts/worker.ts",
     "build": "npx next build",
     "start": "npx next start --port 5000",
     "lint": "eslint",

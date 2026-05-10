@@ -266,11 +266,15 @@ export async function generateImportedLearningNote(input: {
   sourceText: string;
   sourceLabel: string;
   userId?: string;
+  requireLLM?: boolean;
 }): Promise<ImportedLearningNote> {
   const fallback = buildFallbackImportedNote(input);
   const sourceText = compactText(input.sourceText);
 
   if (sourceText.length < 20) {
+    if (input.requireLLM) {
+      throw new Error("可用于大模型生成的资料文本太少");
+    }
     return fallback;
   }
 
@@ -327,11 +331,20 @@ content 必须包含这些部分：
         },
         { role: "user", content: prompt },
       ],
-      { temperature: 0.25, maxTokens: 8192 }
+      {
+        temperature: 0.25,
+        maxTokens: 8192,
+        timeoutMs: input.requireLLM ? Number(process.env.LLM_IMPORT_TIMEOUT_MS || 240000) : undefined,
+      }
     );
 
     const parsed = parseImportedNoteJson(response.content);
-    if (!parsed?.content) return fallback;
+    if (!parsed?.content) {
+      if (input.requireLLM) {
+        throw new Error("大模型没有返回可解析的学习笔记");
+      }
+      return fallback;
+    }
     const keyPoints = parsed.keyPoints.length ? parsed.keyPoints : fallback.keyPoints;
     const tags = parsed.tags.length ? parsed.tags : fallback.tags;
     return {
@@ -347,6 +360,9 @@ content 必须包含这些部分：
       }),
     };
   } catch (error) {
+    if (input.requireLLM) {
+      throw error;
+    }
     console.error("Imported note generation failed, using fallback:", error);
     return fallback;
   }

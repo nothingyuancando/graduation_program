@@ -60,7 +60,7 @@ const importModes = [
   {
     value: "text",
     title: "粘贴文本",
-    description: "最快、最稳定，适合答辩演示和日常整理。",
+    description: "适合快速整理课程片段、文章摘录和错题解析。",
     icon: FileText,
   },
   {
@@ -810,7 +810,7 @@ export default function UploadPage() {
                     粘贴学习材料
                   </CardTitle>
                   <CardDescription>
-                    推荐用于演示：速度稳定，生成后会直接进入笔记页面。
+                    适合把已有材料快速整理成可复习、可测验的学习笔记。
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

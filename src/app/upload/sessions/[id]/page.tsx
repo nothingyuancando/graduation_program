@@ -7,7 +7,6 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle,
-  ExternalLink,
   FileText,
   Loader2,
   RefreshCw,
@@ -41,22 +40,9 @@ type Session = {
   updated_at: string;
 };
 
-type GenerationJob = {
-  id: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  stage: string;
-  progress: number;
-  total_chunks: number;
-  processed_chunks: number;
-  failed_chunks: number;
-  note_id?: string | null;
-  error_message?: string | null;
-};
-
 type SessionDetail = {
   session: Session;
   files: SessionFile[];
-  latestGenerationJob?: GenerationJob | null;
   stats: {
     total: number;
     pending: number;
@@ -73,17 +59,6 @@ const fileStatusText: Record<string, string> = {
   failed: "解析失败",
 };
 
-const jobStageText: Record<string, string> = {
-  queued: "等待生成",
-  preparing_chunks: "整理材料",
-  analyzing_chunks: "分析知识点",
-  merging_analysis: "合并分析",
-  generating_note: "生成笔记",
-  saving_note: "保存笔记",
-  completed: "笔记已生成",
-  failed: "生成失败",
-};
-
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -97,39 +72,8 @@ function fileStatusClass(status: string) {
   return "bg-slate-100 text-slate-700 hover:bg-slate-100";
 }
 
-function buildUserStage(input: {
-  stats: SessionDetail["stats"];
-  generationJob: GenerationJob | null;
-}) {
-  const { stats, generationJob } = input;
+function buildUserStage(stats: SessionDetail["stats"]) {
   const fileProgress = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-
-  if (generationJob?.status === "completed" && generationJob.note_id) {
-    return {
-      title: "笔记已生成",
-      description: "资料已经整理成学习笔记，可以进入下一步复述、测验或复习。",
-      progress: 100,
-      activeIndex: 2,
-    };
-  }
-
-  if (generationJob && ["pending", "running"].includes(generationJob.status)) {
-    return {
-      title: jobStageText[generationJob.stage] || "AI 正在生成笔记",
-      description: `AI 正在处理材料分块：${generationJob.processed_chunks}/${generationJob.total_chunks}`,
-      progress: Math.max(fileProgress, generationJob.progress),
-      activeIndex: 1,
-    };
-  }
-
-  if (generationJob?.status === "failed") {
-    return {
-      title: "AI 生成失败",
-      description: generationJob.error_message || "请检查模型配置或稍后重试。",
-      progress: fileProgress,
-      activeIndex: 1,
-    };
-  }
 
   if (stats.pending > 0 || stats.processing > 0) {
     return {
@@ -140,11 +84,20 @@ function buildUserStage(input: {
     };
   }
 
+  if (stats.completed > 0) {
+    return {
+      title: "准备生成学习笔记",
+      description: "资料解析完成后，系统会直接调用大模型生成学习笔记。",
+      progress: fileProgress,
+      activeIndex: 1,
+    };
+  }
+
   return {
-    title: "准备生成笔记",
-    description: "资料解析完成，正在创建 AI 生成任务。",
+    title: "没有可整理的资料",
+    description: "请返回上传页，重新导入可解析的文本、PDF、Markdown 或网页资料。",
     progress: fileProgress,
-    activeIndex: 1,
+    activeIndex: 0,
   };
 }
 
@@ -157,7 +110,6 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [consolidating, setConsolidating] = useState(false);
-  const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const autoConsolidatedSessionRef = useRef<string | null>(null);
 
@@ -169,7 +121,6 @@ export default function SessionDetailPage() {
       }
       const result = await response.json();
       setData(result);
-      if (result.latestGenerationJob) setGenerationJob(result.latestGenerationJob);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");
@@ -213,13 +164,11 @@ export default function SessionDetailPage() {
       if (!response.ok) {
         throw new Error([result.error, result.hint, result.detail].filter(Boolean).join("\n") || "生成笔记失败");
       }
-      if (result.job) {
-        setGenerationJob(result.job);
-        setError(null);
-      }
       if (result.note?.id) {
         router.push(`/notes/${result.note.id}`);
+        return;
       }
+      await fetchSession();
     } catch (err) {
       setError(err instanceof Error ? err.message : "生成笔记失败");
     } finally {
@@ -231,8 +180,6 @@ export default function SessionDetailPage() {
     if (!data || processing || consolidating) return;
 
     const { session, stats } = data;
-    const hasActiveJob = generationJob && ["pending", "running"].includes(generationJob.status);
-    const hasCompletedJob = generationJob?.status === "completed" && !!generationJob.note_id;
 
     if ((session.status === "pending" || session.status === "processing") && stats.pending > 0 && stats.processing === 0) {
       void handleProcess();
@@ -243,36 +190,15 @@ export default function SessionDetailPage() {
     const canAutoConsolidate =
       allProcessed &&
       stats.completed > 0 &&
-      !hasActiveJob &&
-      !hasCompletedJob &&
-      autoConsolidatedSessionRef.current !== session.id;
+      autoConsolidatedSessionRef.current !== session.id &&
+      session.status !== "completed";
 
     if (canAutoConsolidate) {
       autoConsolidatedSessionRef.current = session.id;
       void handleConsolidate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, processing, consolidating, generationJob]);
-
-  useEffect(() => {
-    if (!generationJob || !["pending", "running"].includes(generationJob.status)) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/generation-jobs/${generationJob.id}`);
-        if (!response.ok) return;
-        const result = await response.json();
-        setGenerationJob(result.job);
-        if (result.job?.status === "completed" && result.job?.note_id) {
-          router.push(`/notes/${result.job.note_id}`);
-        }
-      } catch {
-        // 下一次轮询会继续恢复状态。
-      }
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [generationJob, router]);
+  }, [data, processing, consolidating]);
 
   if (loading) {
     return (
@@ -302,11 +228,9 @@ export default function SessionDetailPage() {
   if (!data) return null;
 
   const { session, files, stats } = data;
-  const userStage = buildUserStage({ stats, generationJob });
+  const userStage = buildUserStage(stats);
   const allProcessed = stats.pending === 0 && stats.processing === 0 && stats.total > 0;
-  const hasActiveJob = generationJob && ["pending", "running"].includes(generationJob.status);
-  const hasCompletedJob = generationJob?.status === "completed" && !!generationJob.note_id;
-  const canConsolidate = allProcessed && stats.completed > 0 && !hasActiveJob && !hasCompletedJob;
+  const canConsolidate = allProcessed && stats.completed > 0 && session.status !== "completed";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -347,8 +271,8 @@ export default function SessionDetailPage() {
               <div className="grid gap-3 md:grid-cols-3">
                 {[
                   { title: "资料解析", description: "提取文本", done: stats.completed >= stats.total && stats.total > 0 },
-                  { title: "AI 生成", description: "生成学习笔记", done: generationJob?.status === "completed" },
-                  { title: "进入学习", description: "复述与测验", done: hasCompletedJob },
+                  { title: "AI 生成", description: "大模型生成学习笔记", done: session.status === "completed" },
+                  { title: "进入学习", description: "复述与测验", done: session.status === "completed" },
                 ].map((step, index) => {
                   const active = userStage.activeIndex === index;
                   return (
@@ -370,7 +294,7 @@ export default function SessionDetailPage() {
               </div>
 
               {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 whitespace-pre-line">
+                <div className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                   {error}
                 </div>
               )}
@@ -380,14 +304,6 @@ export default function SessionDetailPage() {
                   <Button onClick={handleConsolidate} disabled={consolidating} className="bg-slate-950 text-white hover:bg-slate-800">
                     {consolidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                     生成学习笔记
-                  </Button>
-                )}
-                {generationJob?.status === "completed" && generationJob.note_id && (
-                  <Button className="bg-slate-950 text-white hover:bg-slate-800" asChild>
-                    <Link href={`/notes/${generationJob.note_id}`}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      查看生成笔记
-                    </Link>
                   </Button>
                 )}
                 {stats.pending > 0 && (
@@ -452,34 +368,11 @@ export default function SessionDetailPage() {
             </CardContent>
           </Card>
 
-          {generationJob && (
-            <Card className="border-slate-200 bg-white shadow-sm">
-              <CardHeader>
-                <CardTitle>AI 生成进度</CardTitle>
-                <CardDescription>{jobStageText[generationJob.stage] || generationJob.stage}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Progress value={generationJob.progress} />
-                <div className="grid grid-cols-2 gap-2 text-sm text-slate-500">
-                  <span>状态：{generationJob.status}</span>
-                  <span>分块：{generationJob.processed_chunks}/{generationJob.total_chunks}</span>
-                  <span>失败：{generationJob.failed_chunks}</span>
-                  <span>进度：{generationJob.progress}%</span>
-                </div>
-                {generationJob.status === "failed" && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {generationJob.error_message || "AI 生成失败，请检查模型配置或重新尝试。"}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           <Card className="border-slate-200 bg-amber-50 shadow-sm">
             <CardContent className="p-5">
               <p className="font-black text-amber-900">说明</p>
               <p className="mt-2 text-sm leading-6 text-amber-800">
-                “上传完成”只代表资料已进入处理队列。真正可学习的笔记会在资料解析和 AI 生成完成后出现。
+                上传完成只代表资料进入解析流程。解析完成后，系统会直接调用大模型生成学习笔记，生成时间会随材料数量和内容长度变化。
               </p>
             </CardContent>
           </Card>

@@ -70,6 +70,7 @@ export interface LLMConfigOptions {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
+  timeoutMs?: number;
   /** DeepSeek R1 绛夋€濊€冩ā鍨嬮渶瑕佸惎鐢?*/
   enableThinking?: boolean;
 }
@@ -361,14 +362,18 @@ export class LLMClient {
     }
     
     // 鍙戦€佽姹?
-    const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+    const response = await fetchWithTimeout(
+      `${baseURL}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
       },
-      body: JSON.stringify(requestBody),
-    });
+      options?.timeoutMs
+    );
     
     if (!response.ok) {
       const error = await response.text();
@@ -408,14 +413,18 @@ export class LLMClient {
       temperature: options?.temperature ?? Number(process.env.LLM_TEMPERATURE ?? 0.7),
     };
     
-    const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+    const response = await fetchWithTimeout(
+      `${baseURL}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
       },
-      body: JSON.stringify(requestBody),
-    });
+      options?.timeoutMs
+    );
     
     if (!response.ok) {
       const error = await response.text();

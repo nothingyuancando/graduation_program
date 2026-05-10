@@ -33,7 +33,6 @@ if (!(Test-Path -LiteralPath $PidFile)) {
 $record = Get-Content -LiteralPath $PidFile -Raw | ConvertFrom-Json
 
 Stop-RecordedProcess -Name "web" -ProcessId $record.webPid
-Stop-RecordedProcess -Name "worker" -ProcessId $record.workerPid
 
 Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
 Write-Host "Stopped recorded dev processes."

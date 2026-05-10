@@ -65,25 +65,19 @@ $webCommand = if ($Webpack) {
   "npx.cmd next dev --turbopack --port $Port"
 }
 
-$workerCommand = "pnpm.cmd worker"
-
 Write-Host "Starting web service on http://localhost:$Port"
-Write-Host "Starting generation worker"
 
 $web = Start-ServiceWindow -Title "AI Learning Web :$Port" -Command $webCommand
-$worker = Start-ServiceWindow -Title "AI Learning Worker" -Command $workerCommand
 
 @{
   startedAt = (Get-Date).ToString("o")
   port = $Port
   webPid = $web.Id
-  workerPid = $worker.Id
 } | ConvertTo-Json | Set-Content -LiteralPath $PidFile -Encoding UTF8
 
 Write-Host ""
 Write-Host "Started:"
 Write-Host "  Web    PID: $($web.Id)  URL: http://localhost:$Port"
-Write-Host "  Worker PID: $($worker.Id)"
 Write-Host ""
 Write-Host "Stop them with:"
 Write-Host "  pnpm dev:stop"

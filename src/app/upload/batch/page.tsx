@@ -39,7 +39,7 @@ function classifyFile(mimeType: string, fileName: string): string {
     return "文档";
   }
   if (mimeType.startsWith("image/")) return "图片";
-  if (mimeType.includes("presentation") || lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) return "演示文稿";
+  if (mimeType.includes("presentation") || lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) return "幻灯片";
   if (mimeType.includes("spreadsheet") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv")) return "表格";
   return "其他";
 }
@@ -143,7 +143,7 @@ export default function BatchUploadPage() {
             </Button>
             <div>
               <h1 className="text-xl font-black">高级资料导入</h1>
-              <p className="text-sm text-slate-500">一次导入多份材料，系统会在后台解析并生成学习笔记。</p>
+              <p className="text-sm text-slate-500">一次导入多份材料，系统会解析内容并生成学习笔记。</p>
             </div>
           </div>
           <Button variant="outline" asChild>
@@ -282,7 +282,7 @@ export default function BatchUploadPage() {
             <Card className="border-slate-200 bg-white shadow-sm">
               <CardContent className="space-y-3 p-5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold">正在创建处理任务</span>
+                  <span className="font-semibold">正在创建导入会话</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} />
@@ -311,7 +311,7 @@ export default function BatchUploadPage() {
           <Card className="border-slate-200 bg-white shadow-sm">
             <CardHeader>
               <CardTitle>处理过程</CardTitle>
-              <CardDescription>用户体验上只展示三个清晰阶段。</CardDescription>
+              <CardDescription>导入会按三个阶段推进，便于确认每份材料的状态。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
@@ -336,7 +336,7 @@ export default function BatchUploadPage() {
             <CardContent className="p-5">
               <p className="font-black text-amber-900">建议</p>
               <p className="mt-2 text-sm leading-6 text-amber-800">
-                答辩演示时优先使用文本粘贴或少量 PDF。高级导入适合作为补充能力展示，不作为主流程依赖。
+                大批量材料会增加解析和 AI 生成时间。建议先导入最核心的资料，生成笔记后再继续补充。
               </p>
             </CardContent>
           </Card>

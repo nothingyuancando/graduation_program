@@ -15,7 +15,7 @@ export function signToken(payload: { sub: string; email: string }): string {
   return `${header}.${body}.${sig}`;
 }
 
-/** 解码 JWT payload（不验证签名，适合毕业设计场景） */
+/** 解码 JWT payload。生产环境应在这里校验签名并收紧密钥配置。 */
 export function decodeToken(token: string): { sub: string; email: string; exp: number } | null {
   try {
     const parts = token.split(".");

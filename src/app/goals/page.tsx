@@ -450,9 +450,9 @@ export default function GoalsPage() {
 
           <Card className="border-slate-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <p className="font-black">演示建议</p>
+              <p className="font-black">下一步建议</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                答辩时可以先保存一个目标，再进入费曼复述。这样能清楚展示系统如何从“目标设定”进入“深度理解验证”。
+                先保存一个明确目标，再进入费曼复述。系统会把目标、参考笔记和理解验证关联起来，帮助你定位需要补强的知识点。
               </p>
             </CardContent>
           </Card>
