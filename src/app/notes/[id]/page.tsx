@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -573,12 +574,10 @@ export default function NoteDetailPage() {
             <CardDescription>未找到该笔记，可能已被删除</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild>
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+            <BackButton>
+<ArrowLeft className="h-4 w-4 mr-2" />
                 返回首页
-              </Link>
-            </Button>
+              </BackButton>
           </CardContent>
         </Card>
       </div>
@@ -592,12 +591,10 @@ export default function NoteDetailPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+              <BackButton variant="ghost" size="sm">
+<ArrowLeft className="h-4 w-4 mr-2" />
                   返回
-                </Link>
-              </Button>
+              </BackButton>
 
               {editing ? (
                 <div className="flex-1 max-w-xl">

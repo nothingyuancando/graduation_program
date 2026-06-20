@@ -1,10 +1,11 @@
 "use client";
 
-import { MouseEvent, useEffect, useMemo, useState } from "react";
+import { MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   Brain,
+  Bot,
   CheckCircle2,
   Flame,
   GitFork,
@@ -147,7 +148,7 @@ function EmptyLearningSpaces({ filter }: { filter: SpaceFilter }) {
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
         {isCompleted
           ? "完成一个目标后，它会留在这里，方便你回看整条学习闭环和沉淀下来的笔记。"
-          : "先创建一个学习目标，系统会把它变成一个独立学习空间，再围绕知识摄入、深度理解、主动回忆和弱点补强持续推进。"}
+          : "先创建一个学习目标，系统会把它变成独立学习空间，再围绕知识摄入、深度理解、主动回忆和弱点补强持续推进。"}
       </p>
       {!isCompleted && (
         <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -167,32 +168,42 @@ export default function Home() {
   const { user, logout } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [checkinStats, setCheckinStats] = useState<CheckinStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [checkinLoading, setCheckinLoading] = useState(true);
   const [filter, setFilter] = useState<SpaceFilter>("active");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
+  const loadDashboard = useCallback(async () => {
+    setDashboardLoading(true);
     try {
-      const [dashboardResponse, checkinResponse] = await Promise.all([
-        fetch("/api/dashboard"),
-        fetch("/api/checkin/stats"),
-      ]);
-      const dashboardData = await dashboardResponse.json();
-      const checkinData = await checkinResponse.json();
-      if (!dashboardData.error) setDashboard(dashboardData);
-      if (!checkinData.error) setCheckinStats(checkinData);
+      const response = await fetch("/api/dashboard");
+      const data = await response.json();
+      if (!data.error) setDashboard(data);
     } catch (error) {
       console.error("Error loading dashboard:", error);
     } finally {
-      setLoading(false);
+      setDashboardLoading(false);
     }
-  }
+  }, []);
+
+  const loadCheckinStats = useCallback(async () => {
+    setCheckinLoading(true);
+    try {
+      const response = await fetch("/api/checkin/stats");
+      const data = await response.json();
+      if (!data.error) setCheckinStats(data);
+    } catch (error) {
+      console.error("Error loading checkin stats:", error);
+    } finally {
+      setCheckinLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, []);
+    void loadDashboard();
+    void loadCheckinStats();
+  }, [loadCheckinStats, loadDashboard]);
 
   async function handlePublishSpace(event: Event, space: LearningSpace) {
     event.preventDefault();
@@ -207,9 +218,7 @@ export default function Home() {
         return;
       }
       const shouldOpen = window.confirm("已分享到学习闭环广场。要打开公开预览页吗？");
-      if (shouldOpen && data.shareUrl) {
-        window.location.href = data.shareUrl;
-      }
+      if (shouldOpen && data.shareUrl) window.location.href = data.shareUrl;
     } finally {
       setPublishingId(null);
     }
@@ -219,7 +228,7 @@ export default function Home() {
     event.preventDefault();
     event.stopPropagation();
 
-    const confirmed = window.confirm(`确定把「${space.title}」移入回收站吗？相关笔记不会被删除。`);
+    const confirmed = window.confirm(`确定把“${space.title}”移入回收站吗？相关笔记不会被删除。`);
     if (!confirmed) return;
 
     setDeletingId(space.id);
@@ -251,9 +260,9 @@ export default function Home() {
   const firstSpace = activeSpaces[0] || completedSpaces[0];
   const heatmap = useMemo(() => buildHeatmap(checkinStats?.heatmapData || []), [checkinStats]);
   const nextHref = firstSpace ? `/goals/${firstSpace.id}` : firstRecommendation?.href || "/goals";
-  const nextTitle = firstSpace ? `继续推进「${firstSpace.title}」` : "从一个清晰目标开始";
+  const nextTitle = firstSpace ? `继续推进“${firstSpace.title}”` : "从一个清晰目标开始";
   const nextDescription = firstSpace
-    ? `当前来到「${firstSpace.stage}」阶段，下一步建议：${firstSpace.nextAction.label}。`
+    ? `当前来到“${firstSpace.stage}”阶段，下一步建议：${firstSpace.nextAction.label}。`
     : "把想学的内容放进一个学习空间，系统会帮你把材料、笔记、复述、测验和弱点补强串成一条闭环。";
 
   return (
@@ -271,6 +280,12 @@ export default function Home() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" className="border-slate-200 bg-white" asChild>
+              <Link href="/chat">
+                <Bot className="mr-2 h-4 w-4" />
+                AI 对话
+              </Link>
+            </Button>
             <Button className="hidden bg-[#17231f] text-white hover:bg-[#263a34] sm:inline-flex" asChild>
               <Link href={nextHref}>
                 <Sparkles className="mr-2 h-4 w-4" />
@@ -281,9 +296,7 @@ export default function Home() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 rounded-lg">
                   <User className="h-4 w-4" />
-                  <span className="hidden max-w-36 truncate text-sm md:inline">
-                    {user?.email || "用户"}
-                  </span>
+                  <span className="hidden max-w-36 truncate text-sm md:inline">{user?.email || "用户"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -300,9 +313,7 @@ export default function Home() {
       <main className="mx-auto max-w-7xl space-y-6 px-5 py-6 md:px-8 md:py-8">
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <Badge className="mb-4 bg-[#f6cf62] text-slate-950 hover:bg-[#f6cf62]">
-              学习空间
-            </Badge>
+            <Badge className="mb-4 bg-[#f6cf62] text-slate-950 hover:bg-[#f6cf62]">学习空间</Badge>
             <h2 className="max-w-3xl text-3xl font-black leading-tight text-[#17231f] md:text-5xl">
               把每个目标，变成一条能持续推进的学习闭环。
             </h2>
@@ -337,7 +348,7 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {loading ? (
+              {dashboardLoading ? (
                 <>
                   <Skeleton className="h-16 rounded-lg bg-white/15" />
                   <Skeleton className="h-16 rounded-lg bg-white/15" />
@@ -359,7 +370,9 @@ export default function Home() {
                     </div>
                     <div className="rounded-lg bg-white/10 p-4">
                       <p className="text-xs text-white/60">连续学习</p>
-                      <p className="mt-2 text-2xl font-black">{checkinStats?.streak || 0} 天</p>
+                      <p className="mt-2 text-2xl font-black">
+                        {checkinLoading ? "-" : checkinStats?.streak || 0} 天
+                      </p>
                     </div>
                   </div>
                   <div className="rounded-lg bg-white/10 p-3">
@@ -414,7 +427,7 @@ export default function Home() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {dashboardLoading ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   {[1, 2, 3, 4].map((item) => (
                     <Skeleton key={item} className="h-56 rounded-lg" />
@@ -551,7 +564,7 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
-                {loading ? (
+                {dashboardLoading ? (
                   <>
                     <Skeleton className="h-7 w-20 rounded-full" />
                     <Skeleton className="h-7 w-24 rounded-full" />
@@ -560,9 +573,7 @@ export default function Home() {
                 ) : dashboard?.profile.weakConcepts.length ? (
                   dashboard.profile.weakConcepts.slice(0, 10).map((item) => (
                     <Link key={item.concept} href={`/concepts/${encodeURIComponent(item.concept)}`}>
-                      <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-100">
-                        {item.concept}
-                      </Badge>
+                      <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-100">{item.concept}</Badge>
                     </Link>
                   ))
                 ) : (

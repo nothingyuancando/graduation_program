@@ -17,6 +17,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -252,11 +253,9 @@ export default function GoalSpacePage() {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between gap-4 px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black">{goal?.title || "学习空间"}</h1>
               <p className="hidden text-xs text-slate-500 sm:block">目标设定完成后，在这里推进四个学习动作</p>
@@ -287,9 +286,7 @@ export default function GoalSpacePage() {
           <Card className="border-slate-200 bg-white shadow-sm">
             <CardContent className="p-8 text-center">
               <p className="font-bold text-red-600">{error || "学习空间加载失败"}</p>
-              <Button className="mt-4" asChild>
-                <Link href="/">返回首页</Link>
-              </Button>
+              <BackButton className="mt-4">返回</BackButton>
             </CardContent>
           </Card>
         ) : (

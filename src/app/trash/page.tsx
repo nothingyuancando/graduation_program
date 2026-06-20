@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, BookOpenCheck, FileText, RotateCcw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -99,12 +100,10 @@ export default function TrashPage() {
     <div className="min-h-screen bg-[#f7f8f4] text-slate-950">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-[#fbfcf8]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost" size="sm">
+<ArrowLeft className="mr-2 h-4 w-4" />
               返回首页
-            </Link>
-          </Button>
+              </BackButton>
           <div>
             <h1 className="flex items-center gap-2 text-xl font-black">
               <Trash2 className="h-5 w-5 text-slate-500" />

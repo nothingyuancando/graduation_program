@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Brain, Network, Search, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/BackButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,12 +72,10 @@ export default function ConceptsPage() {
     <div className="min-h-screen bg-[#f4efe4] text-slate-950">
       <header className="border-b border-slate-950/10 bg-[#f8f1e6]/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Button variant="ghost" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost">
+<ArrowLeft className="mr-2 h-4 w-4" />
               返回工作台
-            </Link>
-          </Button>
+              </BackButton>
           <Badge className="bg-slate-950 text-white hover:bg-slate-950">
             Obsidian-style Backlinks
           </Badge>

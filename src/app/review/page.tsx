@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, BookOpen, CheckCircle, RotateCcw } from "lucide-react";
@@ -75,12 +75,10 @@ export default function ReviewPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+          <BackButton variant="ghost" size="sm">
+<ArrowLeft className="h-4 w-4 mr-2" />
               返回
-            </Link>
-          </Button>
+              </BackButton>
           <div>
             <h1 className="text-lg font-bold flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-blue-500" />
@@ -108,9 +106,7 @@ export default function ReviewPage() {
                 ? `你共有 ${totalCards} 张卡片，明天再来复习吧`
                 : `完成了 ${reviewedCount} 张卡片的复习，保持下去！`}
             </p>
-            <Button asChild>
-              <Link href="/">返回首页</Link>
-            </Button>
+            <BackButton>返回</BackButton>
           </div>
         ) : (
           <div className="space-y-6">

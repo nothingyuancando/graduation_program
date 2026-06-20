@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, GitFork, Network, Search, Sparkles, Tags, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,12 +73,10 @@ export default function LearningLoopPlazaPage() {
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-          <Button variant="ghost" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost">
+<ArrowLeft className="mr-2 h-4 w-4" />
               返回首页
-            </Link>
-          </Button>
+              </BackButton>
           <Badge className="bg-slate-950 text-white hover:bg-slate-950">
             学习闭环广场
           </Badge>

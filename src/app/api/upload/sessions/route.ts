@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApiClient } from "@/storage/database/supabase-client";
+import { getUserFromRequest } from "@/lib/auth";
 
 // GET /api/upload/sessions - 获取上传会话列表
 export async function GET(request: NextRequest) {
   try {
+    const user = getUserFromRequest(request);
+    if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+
     const client = getApiClient();
 
     const { searchParams } = new URL(request.url);
@@ -14,6 +18,7 @@ export async function GET(request: NextRequest) {
     let query = client
       .from("upload_sessions")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (status) {

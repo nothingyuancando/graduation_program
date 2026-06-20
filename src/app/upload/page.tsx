@@ -31,6 +31,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -546,11 +547,9 @@ export default function UploadPage() {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-[oklch(0.995_0.004_235)]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" size="icon" className="shrink-0" asChild>
-              <Link href="/" aria-label="返回工作台">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon" className="shrink-0" aria-label="返回工作台">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div className="min-w-0">
               <h1 className="text-xl font-black tracking-tight">做学习笔记</h1>
               <p className="truncate text-sm text-slate-500">

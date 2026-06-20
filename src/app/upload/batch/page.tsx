@@ -14,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,11 +137,9 @@ export default function BatchUploadPage() {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/upload">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon" fallbackHref="/upload">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div>
               <h1 className="text-xl font-black">高级资料导入</h1>
               <p className="text-sm text-slate-500">一次导入多份材料，系统会解析内容并生成学习笔记。</p>

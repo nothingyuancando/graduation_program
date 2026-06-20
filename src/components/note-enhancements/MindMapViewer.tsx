@@ -13,8 +13,11 @@ import { Button } from "@/components/ui/button";
 import { GitBranch, List } from "lucide-react";
 
 interface MindMapNode {
-  id: string;
-  label: string;
+  id?: string;
+  label?: string;
+  title?: string;
+  name?: string;
+  root?: string;
   description?: string;
   type?: string;
   children?: MindMapNode[];
@@ -45,8 +48,21 @@ function countLeaves(node: MindMapNode): number {
 }
 
 function nodeLabel(node: MindMapNode) {
-  if (!node.description) return node.label;
-  return `${node.label}\n${node.description}`;
+  const label = node.label || node.title || node.name || node.root || "未命名节点";
+  if (!node.description) return label;
+  return `${label}\n${node.description}`;
+}
+
+function normalizeMindMapNode(node: MindMapNode, fallbackId = "root"): Required<Pick<MindMapNode, "id" | "label">> & MindMapNode {
+  const label = node.label || node.title || node.name || node.root || "未命名节点";
+  const id = node.id || fallbackId;
+
+  return {
+    ...node,
+    id,
+    label,
+    children: node.children?.map((child, index) => normalizeMindMapNode(child, `${id}-${index}`)),
+  };
 }
 
 function buildGraph(
@@ -62,8 +78,8 @@ function buildGraph(
   const y = depth * Y_GAP;
   const { bg, text, border } = colorAt(depth);
 
-  nodes.push({
-    id: node.id,
+    nodes.push({
+    id: node.id || "root",
     data: { label: nodeLabel(node) },
     position: { x: x - 105, y },
     style: {
@@ -86,7 +102,7 @@ function buildGraph(
     edges.push({
       id: `${parentId}-${node.id}`,
       source: parentId,
-      target: node.id,
+      target: node.id || "root",
       type: "smoothstep",
       style: { stroke: colorAt(depth).bg, strokeWidth: 2.2 },
     });
@@ -94,7 +110,7 @@ function buildGraph(
 
   let childLeafStart = leafStart;
   for (const child of node.children ?? []) {
-    buildGraph(child, depth + 1, childLeafStart, nodes, edges, node.id);
+    buildGraph(child, depth + 1, childLeafStart, nodes, edges, node.id || "root");
     childLeafStart += countLeaves(child);
   }
 }
@@ -138,15 +154,18 @@ function TreeTextView({ node, depth = 0 }: { node: MindMapNode; depth?: number }
 }
 
 export function MindMapViewer({ data }: Props) {
-  const [mode, setMode] = useState<"flow" | "tree">("flow");
+  const [mode, setMode] = useState<"flow" | "tree">("tree");
 
   const { nodes, edges } = useMemo(() => {
     if (!data) return { nodes: [], edges: [] };
+    const normalizedData = normalizeMindMapNode(data);
     const nextNodes: Node[] = [];
     const nextEdges: Edge[] = [];
-    buildGraph(data, 0, 0, nextNodes, nextEdges, null);
+    buildGraph(normalizedData, 0, 0, nextNodes, nextEdges, null);
     return { nodes: nextNodes, edges: nextEdges };
   }, [data]);
+
+  const normalizedData = useMemo(() => (data ? normalizeMindMapNode(data) : null), [data]);
 
   if (!data) {
     return (
@@ -207,7 +226,7 @@ export function MindMapViewer({ data }: Props) {
         </div>
       ) : (
         <div className="p-5 rounded-xl border bg-card">
-          <TreeTextView node={data} />
+          {normalizedData && <TreeTextView node={normalizedData} />}
         </div>
       )}
     </div>

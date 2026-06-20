@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -26,6 +25,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -412,11 +412,9 @@ export default function NewNotePage() {
       <header className="sticky top-0 z-40 border-b border-slate-950/10 bg-[#fbf7ee]/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-5 py-4 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-full" asChild>
-              <Link href="/notes">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon" className="rounded-full" fallbackHref="/notes">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-black tracking-tight">写学习笔记</h1>
               <p className="mt-1 text-sm text-slate-600">边写边看，写完直接进入复述、测验和复习。</p>

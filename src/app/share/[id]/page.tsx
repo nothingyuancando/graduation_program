@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, BookOpenCheck, GitFork, Loader2, Network, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -142,12 +142,10 @@ export default function SharedLoopPage() {
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
-          <Button variant="ghost" asChild>
-            <Link href="/explore">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost" fallbackHref="/explore">
+<ArrowLeft className="mr-2 h-4 w-4" />
               学习闭环广场
-            </Link>
-          </Button>
+              </BackButton>
           <Button onClick={handleFork} disabled={forking || !loop} className="bg-slate-950 text-white hover:bg-slate-800">
             {forking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
             Fork 为我的学习空间

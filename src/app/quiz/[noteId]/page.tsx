@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -203,12 +203,10 @@ export default function QuizPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={`/notes/${noteId}`}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+              <BackButton variant="ghost" size="sm" fallbackHref={`/notes/${noteId}`}>
+<ArrowLeft className="h-4 w-4 mr-2" />
                   返回笔记
-                </Link>
-              </Button>
+              </BackButton>
               <div>
                 <h1 className="text-2xl font-bold">练习测验</h1>
                 {noteTitle && (

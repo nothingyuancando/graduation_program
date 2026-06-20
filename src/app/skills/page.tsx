@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -238,12 +238,10 @@ export default function SkillsPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+              <BackButton variant="ghost" size="sm">
+<ArrowLeft className="h-4 w-4 mr-2" />
                   返回
-                </Link>
-              </Button>
+              </BackButton>
               <div>
                 <h1 className="text-2xl font-bold">技能画像</h1>
                 <p className="text-sm text-muted-foreground">设置你的学习偏好，AI 将据此个性化回答</p>

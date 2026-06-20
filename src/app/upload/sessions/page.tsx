@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,12 +76,10 @@ export default function SessionsPage() {
       <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/">
-                <ArrowLeft className="w-4 h-4 mr-2" />
+            <BackButton variant="ghost" size="sm">
+<ArrowLeft className="w-4 h-4 mr-2" />
                 返回
-              </Link>
-            </Button>
+              </BackButton>
             <h1 className="text-xl font-semibold">上传会话</h1>
           </div>
         </div>

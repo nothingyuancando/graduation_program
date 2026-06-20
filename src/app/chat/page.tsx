@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, Bot, Loader2, Send, User, Wrench } from "lucide-react";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -124,12 +124,10 @@ export default function ChatPage() {
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-sky-50">
       <header className="shrink-0 border-b bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost" size="sm">
+<ArrowLeft className="mr-2 h-4 w-4" />
               返回
-            </Link>
-          </Button>
+              </BackButton>
           <div>
             <h1 className="text-lg font-semibold">智能学习 Agent</h1>
             <p className="text-xs text-muted-foreground">

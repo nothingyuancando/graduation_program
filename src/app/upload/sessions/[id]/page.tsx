@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -237,11 +238,9 @@ export default function SessionDetailPage() {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/upload">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon" fallbackHref="/upload">
+              <ArrowLeft className="h-5 w-5" />
+            </BackButton>
             <div>
               <h1 className="line-clamp-1 text-xl font-black">{session.title}</h1>
               <p className="text-sm text-slate-500">

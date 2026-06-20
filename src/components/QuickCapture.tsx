@@ -90,12 +90,13 @@ export function QuickCapture() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-bold">快速记草稿</p>
-                <p className="text-xs text-slate-500">只记录想法，稍后再整理成学习笔记</p>
+                <p className="text-xs text-slate-500">先记录想法，稍后再整理成学习笔记</p>
               </div>
               <button
                 onClick={() => setOpen(false)}
                 className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 type="button"
+                aria-label="关闭"
               >
                 <X className="h-4 w-4" />
               </button>

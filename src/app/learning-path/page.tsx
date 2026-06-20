@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -123,12 +124,10 @@ export default function LearningPathPage() {
 
       <header className="relative z-10 border-b border-slate-950/10 bg-[#f8f1e6]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Button variant="ghost" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <BackButton variant="ghost">
+<ArrowLeft className="mr-2 h-4 w-4" />
               返回首页
-            </Link>
-          </Button>
+              </BackButton>
           <Badge className="bg-slate-950 text-white hover:bg-slate-950">
             LearningPathAgent
           </Badge>

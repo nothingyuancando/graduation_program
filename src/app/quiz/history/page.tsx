@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,12 +78,10 @@ export default function QuizHistoryPage() {
       <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+            <BackButton variant="ghost" size="sm">
+<ArrowLeft className="h-4 w-4 mr-2" />
                 返回
-              </Link>
-            </Button>
+              </BackButton>
             <h1 className="text-2xl font-bold">测验历史</h1>
           </div>
         </div>

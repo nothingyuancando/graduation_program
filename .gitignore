@@ -82,6 +82,7 @@ Desktop.ini
 *.temp
 .tmp/
 .temp/
+screenshots/
 
 # Optional files
 *.tgz

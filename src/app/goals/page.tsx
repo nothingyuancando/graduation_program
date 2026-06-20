@@ -15,6 +15,7 @@ import {
   Target,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -202,11 +203,9 @@ export default function GoalsPage() {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div>
               <h1 className="text-xl font-black">学习目标与规划</h1>
               <p className="text-sm text-slate-500">闭环第一阶段：把“想学什么”变成可跟踪的目标。</p>

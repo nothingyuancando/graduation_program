@@ -17,6 +17,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -323,11 +324,9 @@ function NotesContent() {
       <header className="sticky top-0 z-40 border-b border-slate-950/10 bg-[#f8f1e6]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="rounded-full" asChild>
-              <Link href="/">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+            <BackButton variant="ghost" size="icon" className="rounded-full">
+<ArrowLeft className="h-5 w-5" />
+              </BackButton>
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-black tracking-tight">学习资料库</h1>

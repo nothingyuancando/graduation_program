@@ -1,6 +1,7 @@
 /**
- * LangChain ChatOpenAI 适配层
- * 复用现有 llm-provider.ts 的多提供商配置，返回 LangChain ChatOpenAI 实例
+ * LangChain chat model adapter.
+ * DeepSeek and the other supported providers expose OpenAI-compatible chat APIs,
+ * so ChatOpenAI can be reused with each provider's base URL.
  */
 
 import { ChatOpenAI } from "@langchain/openai";
@@ -17,7 +18,6 @@ export async function getChatModel(options?: {
   streaming?: boolean;
   userId?: string;
 }): Promise<ChatOpenAI> {
-  // 按优先级确定提供商
   const envProvider = process.env.LLM_PROVIDER as LLMProvider | undefined;
   let provider: LLMProvider;
 
@@ -27,16 +27,12 @@ export async function getChatModel(options?: {
     provider = envProvider;
   } else {
     const configured = getConfiguredProviders();
-    provider = configured.length > 0 ? configured[0] : "openai";
+    provider = configured.length > 0 ? configured[0] : "deepseek";
   }
 
   const config = PROVIDER_CONFIGS[provider];
-  const model =
-    options?.model || process.env.LLM_MODEL || config.defaultModel;
-
-  const apiKey =
-    process.env[config.envKey] || process.env.LLM_API_KEY || "";
-
+  const model = options?.model || process.env.LLM_MODEL || config.defaultModel;
+  const apiKey = process.env[config.envKey] || process.env.LLM_API_KEY || "";
   const baseURL =
     process.env[`${provider.toUpperCase()}_BASE_URL`] ||
     process.env.LLM_BASE_URL ||

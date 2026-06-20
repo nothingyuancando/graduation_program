@@ -3,9 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Comparison {
-  title: string;
-  headers: string[];
-  rows: string[][];
+  title?: string;
+  headers?: string[];
+  rows?: string[][];
+  dimension?: string;
+  value?: string;
 }
 
 interface ComparisonViewerProps {
@@ -17,6 +19,22 @@ export function ComparisonViewer({ comparisons }: ComparisonViewerProps) {
     return null;
   }
 
+  const normalizedComparisons = comparisons.map((comparison) => {
+    if (Array.isArray(comparison.headers) && Array.isArray(comparison.rows)) {
+      return {
+        title: comparison.title || "对比分析",
+        headers: comparison.headers,
+        rows: comparison.rows,
+      };
+    }
+
+    return {
+      title: comparison.title || "对比分析",
+      headers: ["维度", "说明"],
+      rows: [[comparison.dimension || "未命名维度", comparison.value || ""]],
+    };
+  });
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -25,7 +43,7 @@ export function ComparisonViewer({ comparisons }: ComparisonViewerProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {comparisons.map((comparison, index) => (
+        {normalizedComparisons.map((comparison, index) => (
           <div key={index} className="space-y-3">
             <h4 className="font-semibold text-slate-800 dark:text-slate-200">
               {comparison.title}

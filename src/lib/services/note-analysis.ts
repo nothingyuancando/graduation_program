@@ -147,11 +147,11 @@ export async function analyzeNoteById(noteId: string, options?: AnalyzeNoteOptio
       .limit(20);
 
     if (feedbacks?.length) {
-      feedbackContext = `\n\n浠ヤ笅鏄敤鎴峰鍘嗗彶鐭ヨ瘑鎻愬彇缁撴灉鐨勪慨姝ｏ紝璇峰弬鑰冭繖浜涘亸濂介伩鍏嶉噸澶嶉敊璇細\n${feedbacks
+      feedbackContext = `\n\n以下是用户对历史知识提取结果的修正，请参考这些偏好避免重复错误：\n${feedbacks
         .map((feedback) =>
           feedback.feedback === "edited" && feedback.corrected_value
-            ? `- 鍘熷锛?${feedback.original_value}" -> 鐢ㄦ埛淇涓猴細"${feedback.corrected_value}"`
-            : `- 鍘熷锛?${feedback.original_value}" -> 鐢ㄦ埛鏍囪涓轰笉姝ｇ‘`
+            ? `- 原始：“${feedback.original_value}” -> 用户修正为：“${feedback.corrected_value}”`
+            : `- 原始：“${feedback.original_value}” -> 用户标记为不正确`
         )
         .join("\n")}`;
     }
@@ -181,7 +181,7 @@ export async function analyzeNoteById(noteId: string, options?: AnalyzeNoteOptio
     }
   }
 
-  // 鑾峰彇鐢ㄦ埛鎶€鑳界敾鍍忎笂涓嬫枃
+  // 获取用户技能画像上下文。
   let skillContext = "";
   if (options?.userId) {
     try {
